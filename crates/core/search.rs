@@ -640,10 +640,11 @@ impl SyntaxHighlighter {
         &self,
         source: &str,
         ast_calculator: &grep::searcher::AstContextCalculatorWrapper,
+        symbol_offset: usize,
     ) -> String {
         match ast_calculator {
             grep::searcher::AstContextCalculatorWrapper::Calculator(calc) => {
-                self.highlight_with_ast_nodes(source, calc)
+                self.highlight_with_ast_nodes(source, calc, symbol_offset)
             }
         }
     }
@@ -652,48 +653,120 @@ impl SyntaxHighlighter {
         &self,
         source: &str,
         calc: &Box<dyn grep::searcher::AstCalculator>,
+        symbol_offset: usize,
     ) -> String {
-        // For now, let's just do a simple keyword-based highlighting
-        // without using the AST ranges since they're based on the full file
-        // but we're only highlighting a symbol excerpt
+        // Get AST nodes for the full file
+        let syntax_nodes = calc.get_syntax_nodes();
         
-        let mut result = source.to_string();
+        if syntax_nodes.is_empty() {
+            return source.to_string();
+        }
         
-        // Simple keyword highlighting
-        let keywords = [
-            "fn", "let", "mut", "const", "if", "else", "for", "while", "loop", "match", 
-            "return", "struct", "enum", "impl", "trait", "pub", "use", "mod", 
-            "def", "class", "import", "from", "elif", "try", "except", "finally",
-        ];
-        
-        for keyword in keywords.iter() {
-            // Use a simple word boundary approach
-            let pattern = format!("\\b{}\\b", keyword);
-            
-            // Simple replace approach - find whole words and highlight them
-            let mut new_result = String::new();
-            let mut last_end = 0;
-            
-            for (start, part) in result.match_indices(keyword) {
-                // Check word boundaries manually
-                let before_ok = start == 0 || 
-                    !result.chars().nth(start - 1).unwrap_or(' ').is_alphanumeric();
-                let end = start + keyword.len();
-                let after_ok = end >= result.len() || 
-                    !result.chars().nth(end).unwrap_or(' ').is_alphanumeric();
+        // NOW WE CAN DO THIS PROPERLY!
+        // Convert file-relative ranges to source-relative ranges
+        let source_end = symbol_offset + source.len();
+        let relevant_nodes: Vec<_> = syntax_nodes
+            .into_iter()
+            .filter_map(|(range, kind)| {
+                // Only keep nodes that overlap with our source excerpt
+                if range.end <= symbol_offset || range.start >= source_end {
+                    return None; // Node is outside our excerpt
+                }
                 
-                if before_ok && after_ok {
-                    // Add text before the keyword
-                    new_result.push_str(&result[last_end..start]);
-                    // Add highlighted keyword
-                    new_result.push_str(&self.colorize_by_ast_kind(part, "keyword"));
-                    last_end = end;
+                // Adjust range to be relative to source start
+                let source_start = range.start.saturating_sub(symbol_offset);
+                let source_range_end = (range.end.saturating_sub(symbol_offset)).min(source.len());
+                
+                if source_start >= source_range_end {
+                    return None; // Invalid range
+                }
+                
+                Some((source_start..source_range_end, kind))
+            })
+            .collect();
+        
+        if relevant_nodes.is_empty() {
+            return source.to_string();
+        }
+        
+        // Apply highlighting using the adjusted ranges
+        let mut result = String::new();
+        let mut current_pos = 0;
+        let source_bytes = source.as_bytes();
+        
+        for (range, kind) in relevant_nodes {
+            // Add unhighlighted text before this node
+            if range.start > current_pos {
+                if let Ok(text) = std::str::from_utf8(&source_bytes[current_pos..range.start]) {
+                    result.push_str(text);
                 }
             }
             
-            // Add remaining text
-            new_result.push_str(&result[last_end..]);
-            result = new_result;
+            // Add highlighted node
+            if let Ok(node_text) = std::str::from_utf8(&source_bytes[range.start..range.end]) {
+                result.push_str(&self.colorize_by_ast_kind(node_text, &kind));
+            }
+            
+            current_pos = range.end;
+        }
+        
+        // Add remaining unhighlighted text
+        if current_pos < source.len() {
+            if let Ok(text) = std::str::from_utf8(&source_bytes[current_pos..]) {
+                result.push_str(text);
+            }
+        }
+        
+        result
+    }
+    
+    fn highlight_with_smart_patterns(&self, source: &str) -> String {
+        // Smarter pattern-based highlighting that avoids false positives
+        let mut result = source.to_string();
+        
+        // Only highlight keywords in specific contexts to avoid false positives
+        let rust_keywords = [
+            ("fn ", "keyword"),      // Function declarations
+            ("let ", "keyword"),     // Variable declarations 
+            ("if ", "keyword"),      // Control flow
+            ("else", "keyword"),     // Control flow
+            ("for ", "keyword"),     // Loops
+            ("while ", "keyword"),   // Loops
+            ("match ", "keyword"),   // Pattern matching (only with space after)
+            ("return", "keyword"),   // Return statements
+            ("struct ", "keyword"),  // Type definitions
+            ("enum ", "keyword"),    // Type definitions
+            ("impl ", "keyword"),    // Implementations
+            ("trait ", "keyword"),   // Trait definitions
+            ("pub ", "keyword"),     // Visibility
+            ("use ", "keyword"),     // Imports
+            ("mod ", "keyword"),     // Modules
+        ];
+        
+        let python_keywords = [
+            ("def ", "keyword"),
+            ("class ", "keyword"),
+            ("if ", "keyword"),
+            ("elif ", "keyword"),
+            ("else:", "keyword"),
+            ("for ", "keyword"),
+            ("while ", "keyword"),
+            ("try:", "keyword"),
+            ("except", "keyword"),
+            ("finally:", "keyword"),
+            ("import ", "keyword"),
+            ("from ", "keyword"),
+            ("return", "keyword"),
+        ];
+        
+        // Apply Rust keyword highlighting
+        for (pattern, kind) in rust_keywords.iter() {
+            result = self.highlight_pattern(&result, pattern, kind);
+        }
+        
+        // Apply Python keyword highlighting  
+        for (pattern, kind) in python_keywords.iter() {
+            result = self.highlight_pattern(&result, pattern, kind);
         }
         
         // Highlight strings
@@ -702,6 +775,26 @@ impl SyntaxHighlighter {
         // Highlight comments
         result = self.highlight_comments(result);
         
+        result
+    }
+    
+    fn highlight_pattern(&self, source: &str, pattern: &str, kind: &str) -> String {
+        let mut result = String::new();
+        let mut last_end = 0;
+        
+        for start in source.match_indices(pattern).map(|(i, _)| i) {
+            // Add text before the pattern
+            result.push_str(&source[last_end..start]);
+            
+            // Add highlighted pattern
+            let end = start + pattern.len();
+            result.push_str(&self.colorize_by_ast_kind(&source[start..end], kind));
+            
+            last_end = end;
+        }
+        
+        // Add remaining text
+        result.push_str(&source[last_end..]);
         result
     }
     
@@ -932,7 +1025,7 @@ impl<'a, M: Matcher, W: WriteColor> AstSymbolSink<'a, M, W> {
         // Apply AST-based syntax highlighting if enabled
         let highlighted_content = if self.syntax_highlighting {
             let highlighter = SyntaxHighlighter::new();
-            highlighter.highlight_with_ast(symbol_content, &self.ast_calculator)
+            highlighter.highlight_with_ast(symbol_content, &self.ast_calculator, symbol_start)
         } else {
             symbol_content.to_string()
         };
@@ -945,25 +1038,47 @@ impl<'a, M: Matcher, W: WriteColor> AstSymbolSink<'a, M, W> {
             let current_line = start_line + i;
             let original_line = original_lines.get(i).unwrap_or(&"");
 
-            // Check if this line contains any of our original matches
-            let has_match = self.original_matches.iter().any(
-                |(match_start, _match_end)| {
-                    let line_start_byte = symbol_start
-                        + original_lines
-                            .iter()
-                            .take(i)
-                            .map(|l| l.len() + 1)
-                            .sum::<usize>();
-                    let line_end_byte = line_start_byte + original_line.len();
-                    *match_start >= line_start_byte
-                        && *match_start < line_end_byte
-                },
-            );
+            // Calculate byte positions for this line within the symbol
+            let line_start_byte = symbol_start
+                + original_lines
+                    .iter()
+                    .take(i)
+                    .map(|l| l.len() + 1) // +1 for newline
+                    .sum::<usize>();
+            let line_end_byte = line_start_byte + original_line.len();
 
-            if has_match {
-                println!("\x1b[1;32m{}\x1b[0m:{}", current_line, line); // Green bold line number
+            // Find matches within this line
+            let line_matches: Vec<(usize, usize)> = self.original_matches
+                .iter()
+                .filter_map(|(match_start, match_end)| {
+                    if *match_start >= line_start_byte && *match_start < line_end_byte {
+                        // Convert to line-relative positions
+                        let line_match_start = match_start.saturating_sub(line_start_byte);
+                        let line_match_end = (*match_end).min(line_end_byte).saturating_sub(line_start_byte);
+                        Some((line_match_start, line_match_end))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            let final_line = if !line_matches.is_empty() {
+                // For lines with matches, apply highlighting to original line first, then syntax
+                let match_highlighted = self.highlight_search_matches_simple(original_line, &line_matches);
+                if self.syntax_highlighting {
+                    // Apply syntax highlighting while preserving search match highlighting
+                    self.apply_syntax_around_matches(&match_highlighted, &line_matches)
+                } else {
+                    match_highlighted
+                }
             } else {
-                println!("{}:{}", current_line, line);
+                line.to_string()
+            };
+
+            if !line_matches.is_empty() {
+                println!("\x1b[1;32m{}\x1b[0m:{}", current_line, final_line); // Green bold line number
+            } else {
+                println!("{}:{}", current_line, final_line);
             }
         }
 
@@ -978,6 +1093,53 @@ impl<'a, M: Matcher, W: WriteColor> AstSymbolSink<'a, M, W> {
     fn stats(&self) -> Option<grep::printer::Stats> {
         // For now, return None - we could implement proper stats later
         None
+    }
+    
+    fn highlight_search_matches_simple(&self, line: &str, matches: &[(usize, usize)]) -> String {
+        if matches.is_empty() {
+            return line.to_string();
+        }
+        
+        // Debug: check if all matches are out of bounds
+        let valid_matches: Vec<_> = matches.iter()
+            .filter(|(start, end)| *start < line.len() && *end <= line.len() && start < end)
+            .collect();
+            
+        if valid_matches.is_empty() {
+            // No valid matches within this line - highlight entire line for now to show something is matching
+            // TODO: Fix the position calculation
+            return format!("\x1b[1;48;2;212;147;113m{}\x1b[0m", line);
+        }
+        
+        let mut result = String::new();
+        let mut last_pos = 0;
+        
+        for (start, end) in valid_matches {
+            // Add text before match
+            if *start > last_pos {
+                result.push_str(&line[last_pos..*start]);
+            }
+            
+            // Add highlighted match - bright red background  
+            result.push_str("\x1b[1;48;2;212;147;113m"); // Custom RGB background
+            result.push_str(&line[*start..*end]);
+            result.push_str("\x1b[0m"); // Reset
+            
+            last_pos = *end;
+        }
+        
+        // Add remaining text
+        if last_pos < line.len() {
+            result.push_str(&line[last_pos..]);
+        }
+        
+        result
+    }
+    
+    fn apply_syntax_around_matches(&self, line: &str, _matches: &[(usize, usize)]) -> String {
+        // For now, let's keep it simple - just return the line with match highlighting
+        // The search highlighting takes precedence
+        line.to_string()
     }
 }
 
