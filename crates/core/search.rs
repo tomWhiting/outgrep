@@ -23,6 +23,7 @@ struct Config {
     binary_implicit: grep::searcher::BinaryDetection,
     binary_explicit: grep::searcher::BinaryDetection,
     use_ast_context: bool,
+    syntax_highlighting: bool,
 }
 
 impl Default for Config {
@@ -34,6 +35,7 @@ impl Default for Config {
             binary_implicit: grep::searcher::BinaryDetection::none(),
             binary_explicit: grep::searcher::BinaryDetection::none(),
             use_ast_context: false,
+            syntax_highlighting: true, // Default to true
         }
     }
 }
@@ -177,6 +179,17 @@ impl SearchWorkerBuilder {
         yes: bool,
     ) -> &mut SearchWorkerBuilder {
         self.config.use_ast_context = yes;
+        self
+    }
+
+    /// Set whether to enable syntax highlighting.
+    ///
+    /// By default, syntax highlighting is disabled.
+    pub(crate) fn syntax_highlighting(
+        &mut self,
+        yes: bool,
+    ) -> &mut SearchWorkerBuilder {
+        self.config.syntax_highlighting = yes;
         self
     }
 }
@@ -359,6 +372,7 @@ impl<W: WriteColor> SearchWorker<W> {
 
         let (searcher, printer) = (&mut self.searcher, &mut self.printer);
         let use_ast_context = self.config.use_ast_context;
+        let syntax_highlighting = self.config.syntax_highlighting;
         match self.matcher {
             RustRegex(ref m) => search_path_with_context(
                 m,
@@ -366,6 +380,7 @@ impl<W: WriteColor> SearchWorker<W> {
                 printer,
                 path,
                 use_ast_context,
+                syntax_highlighting,
             ),
             #[cfg(feature = "pcre2")]
             PCRE2(ref m) => search_path_with_context(
@@ -374,6 +389,7 @@ impl<W: WriteColor> SearchWorker<W> {
                 printer,
                 path,
                 use_ast_context,
+                syntax_highlighting,
             ),
         }
     }
@@ -411,9 +427,10 @@ fn search_path_with_context<M: Matcher, W: WriteColor>(
     printer: &mut Printer<W>,
     path: &Path,
     use_ast_context: bool,
+    syntax_highlighting: bool,
 ) -> io::Result<SearchResult> {
     if use_ast_context {
-        search_path_ast_context(matcher, searcher, printer, path)
+        search_path_ast_context(matcher, searcher, printer, path, syntax_highlighting)
     } else {
         search_path_standard(matcher, searcher, printer, path)
     }
@@ -460,6 +477,7 @@ fn search_path_ast_context<M: Matcher, W: WriteColor>(
     searcher: &mut grep::searcher::Searcher,
     printer: &mut Printer<W>,
     path: &Path,
+    syntax_highlighting: bool,
 ) -> io::Result<SearchResult> {
     use grep::searcher::{
         create_ast_calculator_for_file, default_context_types,
@@ -511,6 +529,7 @@ fn search_path_ast_context<M: Matcher, W: WriteColor>(
         ast_calculator,
         content,
         temp_matches,
+        syntax_highlighting,
     );
 
     // Process all the matches through the AST sink
@@ -632,11 +651,124 @@ impl SyntaxHighlighter {
     fn highlight_with_ast_nodes(
         &self,
         source: &str,
-        _calc: &Box<dyn grep::searcher::AstCalculator>,
+        calc: &Box<dyn grep::searcher::AstCalculator>,
     ) -> String {
-        // Disable AST syntax highlighting for now due to range mismatches
-        // The AST ranges don't align with the symbol source ranges
-        source.to_string()
+        // For now, let's just do a simple keyword-based highlighting
+        // without using the AST ranges since they're based on the full file
+        // but we're only highlighting a symbol excerpt
+        
+        let mut result = source.to_string();
+        
+        // Simple keyword highlighting
+        let keywords = [
+            "fn", "let", "mut", "const", "if", "else", "for", "while", "loop", "match", 
+            "return", "struct", "enum", "impl", "trait", "pub", "use", "mod", 
+            "def", "class", "import", "from", "elif", "try", "except", "finally",
+        ];
+        
+        for keyword in keywords.iter() {
+            // Use a simple word boundary approach
+            let pattern = format!("\\b{}\\b", keyword);
+            
+            // Simple replace approach - find whole words and highlight them
+            let mut new_result = String::new();
+            let mut last_end = 0;
+            
+            for (start, part) in result.match_indices(keyword) {
+                // Check word boundaries manually
+                let before_ok = start == 0 || 
+                    !result.chars().nth(start - 1).unwrap_or(' ').is_alphanumeric();
+                let end = start + keyword.len();
+                let after_ok = end >= result.len() || 
+                    !result.chars().nth(end).unwrap_or(' ').is_alphanumeric();
+                
+                if before_ok && after_ok {
+                    // Add text before the keyword
+                    new_result.push_str(&result[last_end..start]);
+                    // Add highlighted keyword
+                    new_result.push_str(&self.colorize_by_ast_kind(part, "keyword"));
+                    last_end = end;
+                }
+            }
+            
+            // Add remaining text
+            new_result.push_str(&result[last_end..]);
+            result = new_result;
+        }
+        
+        // Highlight strings
+        result = self.highlight_strings(result);
+        
+        // Highlight comments
+        result = self.highlight_comments(result);
+        
+        result
+    }
+    
+    fn highlight_strings(&self, source: String) -> String {
+        let mut result = source;
+        
+        // Handle double-quoted strings
+        let mut new_result = String::new();
+        let mut chars = result.chars().peekable();
+        let mut in_string = false;
+        let mut string_start = 0;
+        let mut current_string = String::new();
+        let mut pos = 0;
+        
+        while let Some(ch) = chars.next() {
+            if ch == '"' && !in_string {
+                // Start of string
+                new_result.push_str(&result[string_start..pos]);
+                in_string = true;
+                current_string.clear();
+                current_string.push(ch);
+                string_start = pos;
+            } else if ch == '"' && in_string {
+                // End of string
+                current_string.push(ch);
+                new_result.push_str(&self.colorize_by_ast_kind(&current_string, "string"));
+                in_string = false;
+                string_start = pos + 1;
+            } else if in_string {
+                current_string.push(ch);
+            }
+            pos += ch.len_utf8();
+        }
+        
+        // Add any remaining text
+        if string_start < result.len() {
+            new_result.push_str(&result[string_start..]);
+        }
+        
+        new_result
+    }
+    
+    fn highlight_comments(&self, source: String) -> String {
+        let mut result = String::new();
+        
+        for line in source.lines() {
+            if let Some(comment_start) = line.find("//") {
+                // Add text before comment
+                result.push_str(&line[..comment_start]);
+                // Add highlighted comment
+                result.push_str(&self.colorize_by_ast_kind(&line[comment_start..], "comment"));
+            } else if let Some(comment_start) = line.find("#") {
+                // Python-style comment
+                result.push_str(&line[..comment_start]);
+                result.push_str(&self.colorize_by_ast_kind(&line[comment_start..], "comment"));
+            } else {
+                result.push_str(line);
+            }
+            result.push('\n');
+        }
+        
+        // Remove trailing newline if source didn't have one
+        if !source.ends_with('\n') && result.ends_with('\n') {
+            result.pop();
+        }
+        
+        result
     }
 
     fn colorize_by_ast_kind(&self, text: &str, kind: &str) -> String {
@@ -728,6 +860,7 @@ struct AstSymbolSink<'a, M, W> {
     content: String,
     original_matches: Vec<(usize, usize)>,
     has_match: bool,
+    syntax_highlighting: bool,
 }
 
 impl<'a, M: Matcher, W: WriteColor> AstSymbolSink<'a, M, W> {
@@ -738,6 +871,7 @@ impl<'a, M: Matcher, W: WriteColor> AstSymbolSink<'a, M, W> {
         ast_calculator: grep::searcher::AstContextCalculatorWrapper,
         content: String,
         original_matches: Vec<(usize, usize)>,
+        syntax_highlighting: bool,
     ) -> Self {
         Self {
             printer,
@@ -747,6 +881,7 @@ impl<'a, M: Matcher, W: WriteColor> AstSymbolSink<'a, M, W> {
             content,
             original_matches,
             has_match: false,
+            syntax_highlighting,
         }
     }
 
@@ -794,10 +929,13 @@ impl<'a, M: Matcher, W: WriteColor> AstSymbolSink<'a, M, W> {
         // Extract the symbol content
         let symbol_content = &self.content[symbol_start..symbol_end];
 
-        // Apply AST-based syntax highlighting
-        let highlighter = SyntaxHighlighter::new();
-        let highlighted_content = highlighter
-            .highlight_with_ast(symbol_content, &self.ast_calculator);
+        // Apply AST-based syntax highlighting if enabled
+        let highlighted_content = if self.syntax_highlighting {
+            let highlighter = SyntaxHighlighter::new();
+            highlighter.highlight_with_ast(symbol_content, &self.ast_calculator)
+        } else {
+            symbol_content.to_string()
+        };
 
         // Add line numbers to the output with match highlighting
         let start_line = self.byte_to_line(symbol_start);

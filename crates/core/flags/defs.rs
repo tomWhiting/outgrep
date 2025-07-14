@@ -131,6 +131,7 @@ pub(super) const FLAGS: &[&dyn Flag] = &[
     &Sortr,
     &Stats,
     &StopOnNonmatch,
+    &NoSyntaxHighlight,
     &Text,
     &Threads,
     &Trace,
@@ -6577,6 +6578,67 @@ fn test_stop_on_nonmatch() {
         parse_low_raw(["--stop-on-nonmatch", "--no-multiline"]).unwrap();
     assert_eq!(false, args.multiline);
     assert_eq!(true, args.stop_on_nonmatch);
+}
+
+/// --no-syntax-highlight
+#[derive(Debug)]
+struct NoSyntaxHighlight;
+
+impl Flag for NoSyntaxHighlight {
+    fn is_switch(&self) -> bool {
+        true
+    }
+    fn name_long(&self) -> &'static str {
+        "no-syntax-highlight"
+    }
+    fn doc_category(&self) -> Category {
+        Category::Output
+    }
+    fn doc_short(&self) -> &'static str {
+        "Disable syntax highlighting in AST context mode."
+    }
+    fn doc_long(&self) -> &'static str {
+        r"
+Disable syntax highlighting when using --enclosing-symbol (AST context mode).
+By default, syntax highlighting is enabled when using AST context mode to 
+colorize code elements like keywords, strings, comments, and functions based 
+on the detected language.
+.sp
+Syntax highlighting is automatically disabled when:
+.sp
+.IP \(bu 3n
+Not using --enclosing-symbol mode.
+.sp
+.IP \(bu 3n
+Output is redirected to a file or pipe (unless --color=always is used).
+.sp
+.IP \(bu 3n
+The file type is not supported by tree-sitter.
+.sp
+.IP \(bu 3n
+Colors are disabled via --color=never.
+.sp
+Note that this feature requires the language to be detected from the file 
+extension. Currently supported languages include Rust, Python, JavaScript, 
+TypeScript, Go, Java, C/C++, and many others.
+"
+    }
+
+    fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+        // Since this is --no-syntax-highlight, we invert the switch
+        args.syntax_highlighting = !v.unwrap_switch();
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn test_no_syntax_highlight() {
+    let args = parse_low_raw(None::<&str>).unwrap();
+    assert_eq!(true, args.syntax_highlighting); // Default is now true
+
+    let args = parse_low_raw(["--no-syntax-highlight"]).unwrap();
+    assert_eq!(false, args.syntax_highlighting); // Disabled with flag
 }
 
 /// -a/--text

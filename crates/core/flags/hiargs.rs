@@ -97,6 +97,7 @@ pub(crate) struct HiArgs {
     sort: Option<SortMode>,
     stats: Option<grep::printer::Stats>,
     stop_on_nonmatch: bool,
+    syntax_highlighting: bool,
     threads: usize,
     trim: bool,
     types: ignore::types::Types,
@@ -314,6 +315,7 @@ impl HiArgs {
             sort: low.sort,
             stats,
             stop_on_nonmatch: low.stop_on_nonmatch,
+            syntax_highlighting: low.syntax_highlighting,
             threads,
             trim: low.trim,
             types,
@@ -705,7 +707,8 @@ impl HiArgs {
             .search_zip(self.search_zip)
             .binary_detection_explicit(self.binary.explicit.clone())
             .binary_detection_implicit(self.binary.implicit.clone())
-            .ast_context(use_ast_context);
+            .ast_context(use_ast_context)
+            .syntax_highlighting(self.syntax_highlighting);
         Ok(builder.build(matcher, searcher, printer))
     }
 
@@ -753,6 +756,11 @@ impl HiArgs {
             }
         }
         Ok(builder.build())
+    }
+
+    /// Return whether syntax highlighting is enabled.
+    pub(crate) fn syntax_highlighting(&self) -> bool {
+        self.syntax_highlighting
     }
 
     /// Given an iterator of haystacks, sort them if necessary.
