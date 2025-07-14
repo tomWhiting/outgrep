@@ -58,6 +58,12 @@ impl<D: Doc> AstContextCalculator<D> {
         }
     }
 
+    /// Get the root node for syntax highlighting.
+    pub fn get_root_node(&self) -> Node<D> {
+        self.ast_grep.root()
+    }
+
+
     /// Calculate the enclosing symbol context for a given match range.
     pub fn calculate_context(
         &self,

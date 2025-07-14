@@ -614,238 +614,24 @@ impl SyntaxHighlighter {
         source: &str,
         ast_calculator: &grep::searcher::AstContextCalculatorWrapper,
     ) -> String {
-        // For now, implement a simple approach: collect all AST nodes and apply colors
         match ast_calculator {
             grep::searcher::AstContextCalculatorWrapper::Calculator(calc) => {
-                self.highlight_with_calculator(source, calc)
+                self.highlight_with_ast_nodes(source, calc)
             }
         }
     }
 
-    fn highlight_with_calculator(
+    fn highlight_with_ast_nodes(
         &self,
         source: &str,
         _calc: &Box<dyn grep::searcher::AstCalculator>,
     ) -> String {
-        // Use AST-aware highlighting - the AST calculator gives us the structure
-        // For now, use the basic highlighter but enhanced with AST context
-        self.apply_basic_highlighting(source)
+        // TODO: Implement proper AST-based syntax highlighting
+        // For now, just return the source without highlighting to avoid the string matching mess
+        source.to_string()
     }
 
-    fn apply_basic_highlighting(&self, source: &str) -> String {
-        let mut result = String::new();
-        let mut chars = source.chars().peekable();
-        let mut current_line = String::new();
-        
-        while let Some(ch) = chars.next() {
-            if ch == '\n' {
-                // Process the accumulated line
-                result.push_str(&self.highlight_line(&current_line));
-                result.push('\n');
-                current_line.clear();
-            } else {
-                current_line.push(ch);
-            }
-        }
-        
-        // Process any remaining line
-        if !current_line.is_empty() {
-            result.push_str(&self.highlight_line(&current_line));
-        }
-        
-        result
-    }
 
-    fn highlight_line(&self, line: &str) -> String {
-        let mut result = String::new();
-        let mut chars = line.chars().peekable();
-        let mut current_word = String::new();
-        
-        while let Some(ch) = chars.next() {
-            match ch {
-                // String literals
-                '"' => {
-                    if !current_word.is_empty() {
-                        result.push_str(&self.highlight_word(&current_word));
-                        current_word.clear();
-                    }
-                    result.push_str(&self.colors.string);
-                    result.push('"');
-                    // Collect the rest of the string
-                    while let Some(inner_ch) = chars.next() {
-                        result.push(inner_ch);
-                        if inner_ch == '"' && chars.peek() != Some(&'\\') {
-                            break;
-                        }
-                    }
-                    result.push_str(&self.colors.normal);
-                }
-                '\'' => {
-                    if !current_word.is_empty() {
-                        result.push_str(&self.highlight_word(&current_word));
-                        current_word.clear();
-                    }
-                    result.push_str(&self.colors.string);
-                    result.push('\'');
-                    // Collect the rest of the string
-                    while let Some(inner_ch) = chars.next() {
-                        result.push(inner_ch);
-                        if inner_ch == '\'' && chars.peek() != Some(&'\\') {
-                            break;
-                        }
-                    }
-                    result.push_str(&self.colors.normal);
-                }
-                // Line comments
-                '/' if chars.peek() == Some(&'/') => {
-                    if !current_word.is_empty() {
-                        result.push_str(&self.highlight_word(&current_word));
-                        current_word.clear();
-                    }
-                    result.push_str(&self.colors.comment);
-                    result.push_str("//");
-                    chars.next(); // consume the second '/'
-                    // Rest of line is comment
-                    while let Some(comment_ch) = chars.next() {
-                        result.push(comment_ch);
-                    }
-                    result.push_str(&self.colors.normal);
-                    break;
-                }
-                // Block comments
-                '/' if chars.peek() == Some(&'*') => {
-                    if !current_word.is_empty() {
-                        result.push_str(&self.highlight_word(&current_word));
-                        current_word.clear();
-                    }
-                    result.push_str(&self.colors.comment);
-                    result.push_str("/*");
-                    chars.next(); // consume the '*'
-                    // Look for end of comment
-                    while let Some(comment_ch) = chars.next() {
-                        result.push(comment_ch);
-                        if comment_ch == '*' && chars.peek() == Some(&'/') {
-                            result.push(chars.next().unwrap());
-                            break;
-                        }
-                    }
-                    result.push_str(&self.colors.normal);
-                }
-                // Numbers
-                c if c.is_ascii_digit() => {
-                    if !current_word.is_empty() {
-                        result.push_str(&self.highlight_word(&current_word));
-                        current_word.clear();
-                    }
-                    result.push_str(&self.colors.number);
-                    result.push(c);
-                    // Collect the rest of the number
-                    while let Some(&next_ch) = chars.peek() {
-                        if next_ch.is_ascii_digit() || next_ch == '.' || next_ch == '_' {
-                            result.push(chars.next().unwrap());
-                        } else {
-                            break;
-                        }
-                    }
-                    result.push_str(&self.colors.normal);
-                }
-                // Operators and punctuation
-                c if "+-*/%=<>!&|^~:;,.(){}[]".contains(c) => {
-                    if !current_word.is_empty() {
-                        result.push_str(&self.highlight_word(&current_word));
-                        current_word.clear();
-                    }
-                    result.push_str(&self.colors.operator);
-                    result.push(c);
-                    result.push_str(&self.colors.normal);
-                }
-                // Whitespace
-                c if c.is_whitespace() => {
-                    if !current_word.is_empty() {
-                        result.push_str(&self.highlight_word(&current_word));
-                        current_word.clear();
-                    }
-                    result.push(c);
-                }
-                // Regular characters (part of identifiers/keywords)
-                c => {
-                    current_word.push(c);
-                }
-            }
-        }
-        
-        // Process any remaining word
-        if !current_word.is_empty() {
-            result.push_str(&self.highlight_word(&current_word));
-        }
-        
-        result
-    }
-
-    fn highlight_word(&self, word: &str) -> String {
-        let color = if self.is_keyword(word) {
-            &self.colors.keyword
-        } else if self.is_type_name(word) {
-            &self.colors.type_name
-        } else if self.is_function_name(word) {
-            &self.colors.function
-        } else {
-            &self.colors.identifier
-        };
-        
-        format!("{}{}{}", color, word, self.colors.normal)
-    }
-
-    fn is_keyword(&self, word: &str) -> bool {
-        matches!(word, 
-            "fn" | "let" | "mut" | "const" | "static" | "if" | "else" | "match" | "for" | "while" | 
-            "loop" | "return" | "break" | "continue" | "struct" | "enum" | "impl" | "trait" | 
-            "use" | "mod" | "pub" | "extern" | "crate" | "self" | "Self" | "super" | "where" |
-            "async" | "await" | "move" | "ref" | "unsafe" | "type" | "dyn" | "as" | "in" |
-            // JavaScript/TypeScript keywords
-            "function" | "var" | "const" | "let" | "class" | "extends" | "interface" | "import" | 
-            "export" | "default" | "typeof" | "instanceof" | "new" | "this" | "super" | "try" | 
-            "catch" | "finally" | "throw" | "void" | "null" | "undefined" | "true" | "false" |
-            // Python keywords
-            "def" | "class" | "import" | "from" | "as" | "pass" | "lambda" | "with" | "yield" | 
-            "global" | "nonlocal" | "assert" | "del" | "raise" | "try" | "except" | "finally" |
-            "and" | "or" | "not" | "is" | "in" | "True" | "False" | "None" |
-            // Go keywords
-            "package" | "import" | "func" | "var" | "const" | "type" | "struct" | "interface" | 
-            "map" | "chan" | "go" | "defer" | "select" | "case" | "default" | "fallthrough" | 
-            "range" | "goto" |
-            // C/C++ keywords
-            "int" | "char" | "float" | "double" | "void" | "short" | "long" | "signed" | "unsigned" | 
-            "auto" | "register" | "static" | "extern" | "const" | "volatile" | "typedef" | 
-            "struct" | "union" | "enum" | "sizeof" | "include" | "define" | "ifdef" | "ifndef" | 
-            "endif" | "if" | "else" | "elif" | "switch" | "case" | "default" | "do" | "while" | 
-            "for" | "goto" | "continue" | "break" | "return" | "namespace" | "using" | "template" | 
-            "class" | "public" | "private" | "protected" | "virtual" | "inline" | "friend" | 
-            "operator" | "new" | "delete" | "this" | "try" | "catch" | "throw"
-        )
-    }
-
-    fn is_type_name(&self, word: &str) -> bool {
-        // Check if word starts with uppercase (common convention for types)
-        word.chars().next().map_or(false, |c| c.is_uppercase()) ||
-        matches!(word,
-            "i8" | "i16" | "i32" | "i64" | "i128" | "isize" |
-            "u8" | "u16" | "u32" | "u64" | "u128" | "usize" |
-            "f32" | "f64" | "bool" | "char" | "str" | "String" |
-            "Vec" | "HashMap" | "HashSet" | "Option" | "Result" |
-            "Box" | "Rc" | "Arc" | "RefCell" | "Mutex" | "RwLock" |
-            // Common types in other languages
-            "int" | "float" | "double" | "char" | "bool" | "string" | "array" | "object" |
-            "String" | "Integer" | "Float" | "Boolean" | "Array" | "Object" | "Map" | "Set"
-        )
-    }
-
-    fn is_function_name(&self, word: &str) -> bool {
-        // This is a simple heuristic - could be enhanced with AST info
-        word.chars().next().map_or(false, |c| c.is_lowercase()) &&
-        word.chars().any(|c| c == '_') &&
-        !self.is_keyword(word)
-    }
 }
 
 /// AST-aware sink that outputs enclosing symbols with proper formatting.
@@ -927,7 +713,7 @@ impl<'a, M: Matcher, W: WriteColor> AstSymbolSink<'a, M, W> {
             let original_line = original_lines.get(i).unwrap_or(&"");
             
             // Check if this line contains any of our original matches
-            let has_match = self.original_matches.iter().any(|(match_start, match_end)| {
+            let has_match = self.original_matches.iter().any(|(match_start, _match_end)| {
                 let line_start_byte = symbol_start + original_lines.iter().take(i).map(|l| l.len() + 1).sum::<usize>();
                 let line_end_byte = line_start_byte + original_line.len();
                 *match_start >= line_start_byte && *match_start < line_end_byte
