@@ -90,7 +90,7 @@ pub use crate::{
     },
     language_detection::{
         create_ast_calculator_for_file, is_supported_file, get_language_for_file,
-        AstContextCalculatorWrapper,
+        AstContextCalculatorWrapper, AstCalculator,
     },
     lines::{LineIter, LineStep},
     searcher::{

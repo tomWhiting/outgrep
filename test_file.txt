@@ -1,0 +1,4 @@
+This is just a plain text file.
+It has some value in it.
+But no AST structure to parse.
+value appears multiple times here too.
