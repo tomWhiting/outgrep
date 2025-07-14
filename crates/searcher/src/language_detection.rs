@@ -13,6 +13,9 @@ use outgrep_ast_language::SupportLang;
 use crate::ast_context::{AstContextCalculator, AstContextError, AstContextType, default_context_types};
 
 /// Detects the programming language from a file path and creates an AST context calculator.
+/// 
+/// This function fails fast - if the language is not supported or AST parsing fails,
+/// it returns an error rather than falling back to line-based context.
 pub fn create_ast_calculator_for_file(
     file_path: &Path,
     source: &str,
@@ -20,12 +23,14 @@ pub fn create_ast_calculator_for_file(
 ) -> Result<AstContextCalculatorWrapper, AstContextError> {
     let lang = SupportLang::from_path(file_path)
         .ok_or_else(|| AstContextError::UnsupportedLanguage(
-            file_path.to_string_lossy().to_string()
+            format!("File extension not supported for AST parsing: {}", 
+                   file_path.to_string_lossy())
         ))?;
 
     let context_types = context_types.unwrap_or_else(default_context_types);
     
-    Ok(AstContextCalculatorWrapper::new(lang, source, context_types)?)
+    // This will fail if AST parsing fails - no fallback
+    AstContextCalculatorWrapper::new(lang, source, context_types)
 }
 
 /// Wrapper around AST context calculator that handles different language types.
@@ -41,99 +46,95 @@ impl AstContextCalculatorWrapper {
         source: &str,
         context_types: Vec<AstContextType>,
     ) -> Result<Self, AstContextError> {
+        // Macro to create calculator with error handling
+        macro_rules! create_calculator {
+            ($lang_impl:expr, $lang_name:expr) => {{
+                // Try to parse the source with ast-grep
+                let ast_grep = $lang_impl.ast_grep(source);
+                
+                // Check if parsing actually succeeded by trying to get the root
+                let root = ast_grep.root();
+                if root.range().start == 0 && root.range().end == 0 && !source.is_empty() {
+                    return Err(AstContextError::ParseFailed {
+                        language: $lang_name.to_string(),
+                        reason: "Tree-sitter parser returned empty tree for non-empty source".to_string(),
+                    });
+                }
+                
+                Box::new(AstContextCalculator::new(ast_grep, context_types.clone())) as Box<dyn AstCalculator>
+            }};
+        }
+
         let calculator: Box<dyn AstCalculator> = match lang {
             SupportLang::Rust => {
-                let ast_grep = outgrep_ast_language::Rust.ast_grep(source);
-                Box::new(AstContextCalculator::new(ast_grep, context_types))
+                create_calculator!(outgrep_ast_language::Rust, "Rust")
             },
             SupportLang::JavaScript => {
-                let ast_grep = outgrep_ast_language::JavaScript.ast_grep(source);
-                Box::new(AstContextCalculator::new(ast_grep, context_types))
+                create_calculator!(outgrep_ast_language::JavaScript, "JavaScript")
             },
             SupportLang::TypeScript => {
-                let ast_grep = outgrep_ast_language::TypeScript.ast_grep(source);
-                Box::new(AstContextCalculator::new(ast_grep, context_types))
+                create_calculator!(outgrep_ast_language::TypeScript, "TypeScript")
             },
             SupportLang::Python => {
-                let ast_grep = outgrep_ast_language::Python.ast_grep(source);
-                Box::new(AstContextCalculator::new(ast_grep, context_types))
+                create_calculator!(outgrep_ast_language::Python, "Python")
             },
             SupportLang::Go => {
-                let ast_grep = outgrep_ast_language::Go.ast_grep(source);
-                Box::new(AstContextCalculator::new(ast_grep, context_types))
+                create_calculator!(outgrep_ast_language::Go, "Go")
             },
             SupportLang::Java => {
-                let ast_grep = outgrep_ast_language::Java.ast_grep(source);
-                Box::new(AstContextCalculator::new(ast_grep, context_types))
+                create_calculator!(outgrep_ast_language::Java, "Java")
             },
             SupportLang::C => {
-                let ast_grep = outgrep_ast_language::C.ast_grep(source);
-                Box::new(AstContextCalculator::new(ast_grep, context_types))
+                create_calculator!(outgrep_ast_language::C, "C")
             },
             SupportLang::Cpp => {
-                let ast_grep = outgrep_ast_language::Cpp.ast_grep(source);
-                Box::new(AstContextCalculator::new(ast_grep, context_types))
+                create_calculator!(outgrep_ast_language::Cpp, "C++")
             },
             SupportLang::CSharp => {
-                let ast_grep = outgrep_ast_language::CSharp.ast_grep(source);
-                Box::new(AstContextCalculator::new(ast_grep, context_types))
+                create_calculator!(outgrep_ast_language::CSharp, "C#")
             },
             SupportLang::Ruby => {
-                let ast_grep = outgrep_ast_language::Ruby.ast_grep(source);
-                Box::new(AstContextCalculator::new(ast_grep, context_types))
+                create_calculator!(outgrep_ast_language::Ruby, "Ruby")
             },
             SupportLang::Php => {
-                let ast_grep = outgrep_ast_language::Php.ast_grep(source);
-                Box::new(AstContextCalculator::new(ast_grep, context_types))
+                create_calculator!(outgrep_ast_language::Php, "PHP")
             },
             SupportLang::Swift => {
-                let ast_grep = outgrep_ast_language::Swift.ast_grep(source);
-                Box::new(AstContextCalculator::new(ast_grep, context_types))
+                create_calculator!(outgrep_ast_language::Swift, "Swift")
             },
             SupportLang::Kotlin => {
-                let ast_grep = outgrep_ast_language::Kotlin.ast_grep(source);
-                Box::new(AstContextCalculator::new(ast_grep, context_types))
+                create_calculator!(outgrep_ast_language::Kotlin, "Kotlin")
             },
             SupportLang::Scala => {
-                let ast_grep = outgrep_ast_language::Scala.ast_grep(source);
-                Box::new(AstContextCalculator::new(ast_grep, context_types))
+                create_calculator!(outgrep_ast_language::Scala, "Scala")
             },
             SupportLang::Haskell => {
-                let ast_grep = outgrep_ast_language::Haskell.ast_grep(source);
-                Box::new(AstContextCalculator::new(ast_grep, context_types))
+                create_calculator!(outgrep_ast_language::Haskell, "Haskell")
             },
             SupportLang::Elixir => {
-                let ast_grep = outgrep_ast_language::Elixir.ast_grep(source);
-                Box::new(AstContextCalculator::new(ast_grep, context_types))
+                create_calculator!(outgrep_ast_language::Elixir, "Elixir")
             },
             SupportLang::Lua => {
-                let ast_grep = outgrep_ast_language::Lua.ast_grep(source);
-                Box::new(AstContextCalculator::new(ast_grep, context_types))
+                create_calculator!(outgrep_ast_language::Lua, "Lua")
             },
             SupportLang::Bash => {
-                let ast_grep = outgrep_ast_language::Bash.ast_grep(source);
-                Box::new(AstContextCalculator::new(ast_grep, context_types))
+                create_calculator!(outgrep_ast_language::Bash, "Bash")
             },
             // For languages without complex scoping, we can still try basic parsing
             SupportLang::Html => {
-                let ast_grep = outgrep_ast_language::Html.ast_grep(source);
-                Box::new(AstContextCalculator::new(ast_grep, context_types))
+                create_calculator!(outgrep_ast_language::Html, "HTML")
             },
             SupportLang::Css => {
-                let ast_grep = outgrep_ast_language::Css.ast_grep(source);
-                Box::new(AstContextCalculator::new(ast_grep, context_types))
+                create_calculator!(outgrep_ast_language::Css, "CSS")
             },
             SupportLang::Json => {
-                let ast_grep = outgrep_ast_language::Json.ast_grep(source);
-                Box::new(AstContextCalculator::new(ast_grep, context_types))
+                create_calculator!(outgrep_ast_language::Json, "JSON")
             },
             SupportLang::Yaml => {
-                let ast_grep = outgrep_ast_language::Yaml.ast_grep(source);
-                Box::new(AstContextCalculator::new(ast_grep, context_types))
+                create_calculator!(outgrep_ast_language::Yaml, "YAML")
             },
             SupportLang::Tsx => {
-                let ast_grep = outgrep_ast_language::Tsx.ast_grep(source);
-                Box::new(AstContextCalculator::new(ast_grep, context_types))
+                create_calculator!(outgrep_ast_language::Tsx, "TSX")
             },
         };
 

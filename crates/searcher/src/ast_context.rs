@@ -88,7 +88,9 @@ impl<D: Doc> AstContextCalculator<D> {
                 depth: best_depth,
             })
         } else {
-            Err(AstContextError::NoEnclosingSymbol)
+            Err(AstContextError::NoEnclosingSymbol {
+                range: match_range
+            })
         }
     }
 
@@ -214,8 +216,11 @@ impl<D: Doc> AstContextCalculator<D> {
 #[derive(Debug, thiserror::Error)]
 pub enum AstContextError {
     /// No enclosing symbol found for the given match range.
-    #[error("No enclosing symbol found for match")]
-    NoEnclosingSymbol,
+    #[error("No enclosing symbol found for match at bytes {start}-{end}. The match may be at the top level or outside any recognizable code structure.", start = .range.start, end = .range.end)]
+    NoEnclosingSymbol {
+        /// The range where no enclosing symbol was found
+        range: std::ops::Range<usize>
+    },
     
     /// Unknown AST node type encountered.
     #[error("Unknown node type: {0}")]
@@ -226,8 +231,17 @@ pub enum AstContextError {
     InvalidOffset(usize),
     
     /// Unsupported programming language.
-    #[error("Unsupported language for file: {0}")]
+    #[error("{0}")]
     UnsupportedLanguage(String),
+    
+    /// AST parsing failed completely.
+    #[error("Failed to parse file as {language}: {reason}")]
+    ParseFailed {
+        /// The language that failed to parse
+        language: String,
+        /// Reason for the parse failure
+        reason: String,
+    },
 }
 
 /// Default context types for common programming scenarios.

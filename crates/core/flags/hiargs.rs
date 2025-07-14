@@ -336,6 +336,11 @@ impl HiArgs {
         wtr
     }
 
+    /// Returns the context mode being used.
+    pub(crate) fn context_mode(&self) -> &ContextMode {
+        &self.context
+    }
+
     /// Returns true when ripgrep had to guess to search the current working
     /// directory. That is, it's true when ripgrep is called without any file
     /// paths or directories to search.
@@ -692,12 +697,14 @@ impl HiArgs {
         printer: Printer<W>,
     ) -> anyhow::Result<SearchWorker<W>> {
         let mut builder = SearchWorkerBuilder::new();
+        let use_ast_context = matches!(self.context, ContextMode::EnclosingSymbol);
         builder
             .preprocessor(self.pre.clone())?
             .preprocessor_globs(self.pre_globs.clone())
             .search_zip(self.search_zip)
             .binary_detection_explicit(self.binary.explicit.clone())
-            .binary_detection_implicit(self.binary.implicit.clone());
+            .binary_detection_implicit(self.binary.implicit.clone())
+            .ast_context(use_ast_context);
         Ok(builder.build(matcher, searcher, printer))
     }
 

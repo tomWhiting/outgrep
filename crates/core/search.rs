@@ -22,6 +22,7 @@ struct Config {
     search_zip: bool,
     binary_implicit: grep::searcher::BinaryDetection,
     binary_explicit: grep::searcher::BinaryDetection,
+    use_ast_context: bool,
 }
 
 impl Default for Config {
@@ -32,6 +33,7 @@ impl Default for Config {
             search_zip: false,
             binary_implicit: grep::searcher::BinaryDetection::none(),
             binary_explicit: grep::searcher::BinaryDetection::none(),
+            use_ast_context: false,
         }
     }
 }
@@ -160,6 +162,18 @@ impl SearchWorkerBuilder {
         detection: grep::searcher::BinaryDetection,
     ) -> &mut SearchWorkerBuilder {
         self.config.binary_explicit = detection;
+        self
+    }
+
+    /// Set whether to use AST-based enclosing symbol context.
+    ///
+    /// When enabled, the search worker will use AST parsing to find
+    /// enclosing symbols (functions, classes, etc.) around matches
+    /// instead of showing fixed line-based context.
+    ///
+    /// By default, AST context is disabled.
+    pub(crate) fn ast_context(&mut self, yes: bool) -> &mut SearchWorkerBuilder {
+        self.config.use_ast_context = yes;
         self
     }
 }
@@ -341,10 +355,11 @@ impl<W: WriteColor> SearchWorker<W> {
         use self::PatternMatcher::*;
 
         let (searcher, printer) = (&mut self.searcher, &mut self.printer);
+        let use_ast_context = self.config.use_ast_context;
         match self.matcher {
-            RustRegex(ref m) => search_path(m, searcher, printer, path),
+            RustRegex(ref m) => search_path_with_context(m, searcher, printer, path, use_ast_context),
             #[cfg(feature = "pcre2")]
-            PCRE2(ref m) => search_path(m, searcher, printer, path),
+            PCRE2(ref m) => search_path_with_context(m, searcher, printer, path, use_ast_context),
         }
     }
 
@@ -374,8 +389,23 @@ impl<W: WriteColor> SearchWorker<W> {
 }
 
 /// Search the contents of the given file path using the given matcher,
-/// searcher and printer.
-fn search_path<M: Matcher, W: WriteColor>(
+/// searcher and printer, with optional AST context mode.
+fn search_path_with_context<M: Matcher, W: WriteColor>(
+    matcher: M,
+    searcher: &mut grep::searcher::Searcher,
+    printer: &mut Printer<W>,
+    path: &Path,
+    use_ast_context: bool,
+) -> io::Result<SearchResult> {
+    if use_ast_context {
+        search_path_ast_context(matcher, searcher, printer, path)
+    } else {
+        search_path_standard(matcher, searcher, printer, path)
+    }
+}
+
+/// Search using standard ripgrep context.
+fn search_path_standard<M: Matcher, W: WriteColor>(
     matcher: M,
     searcher: &mut grep::searcher::Searcher,
     printer: &mut Printer<W>,
@@ -407,6 +437,172 @@ fn search_path<M: Matcher, W: WriteColor>(
             })
         }
     }
+}
+
+/// Search using AST-based enclosing symbol context.
+fn search_path_ast_context<M: Matcher, W: WriteColor>(
+    matcher: M,
+    searcher: &mut grep::searcher::Searcher, 
+    printer: &mut Printer<W>,
+    path: &Path,
+) -> io::Result<SearchResult> {
+    use grep::searcher::{
+        create_ast_calculator_for_file, default_context_types, is_supported_file,
+    };
+
+    // Check if this file type supports AST parsing
+    if !is_supported_file(path) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("File extension not supported for AST parsing: {}", path.display()),
+        ));
+    }
+
+    // Read the file content for AST parsing
+    let content = std::fs::read_to_string(path)
+        .map_err(|e| io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("Failed to read file for AST parsing: {}", e),
+        ))?;
+
+    // Create AST calculator
+    let ast_calculator = create_ast_calculator_for_file(
+        path,
+        &content,
+        Some(default_context_types()),
+    )
+    .map_err(|e| io::Error::new(
+        io::ErrorKind::InvalidInput,
+        format!("AST parsing failed: {}", e),
+    ))?;
+
+    // Find all matches first using a temporary sink
+    let mut temp_matches = Vec::new();
+    {
+        let mut collector = MatchCollector::new(&mut temp_matches);
+        searcher.search_path(&matcher, path, &mut collector)?;
+    }
+
+    if temp_matches.is_empty() {
+        return Ok(SearchResult {
+            has_match: false,
+            stats: None,
+        });
+    }
+
+    // For each match, find its enclosing symbol and output that instead
+    let mut has_any_match = false;
+    let mut output_ranges = std::collections::HashSet::new();
+
+    for (match_start, match_end) in temp_matches {
+        let match_range = match_start..match_end;
+        
+        match ast_calculator.calculate_context(match_range) {
+            Ok(context_result) => {
+                // Avoid outputting the same symbol multiple times
+                if output_ranges.insert((context_result.range.start, context_result.range.end)) {
+                    // Create output for this enclosing symbol
+                    let symbol_content = &content[context_result.range.start..context_result.range.end];
+                    
+                    // Output the symbol content with proper formatting
+                    match *printer {
+                        Printer::Standard(ref mut p) => {
+                            // Print the enclosing symbol
+                            use std::io::Write;
+                            writeln!(p.get_mut(), "{}", symbol_content)?;
+                            has_any_match = true;
+                        }
+                        Printer::Summary(ref mut p) => {
+                            use std::io::Write;
+                            writeln!(p.get_mut(), "{}", symbol_content)?;
+                            has_any_match = true;
+                        }
+                        Printer::JSON(ref mut p) => {
+                            use std::io::Write;
+                            writeln!(p.get_mut(), "{}", symbol_content)?;
+                            has_any_match = true;
+                        }
+                    }
+                }
+            }
+            Err(ast_error) => {
+                // Print error for this specific match
+                eprintln!("Failed to find enclosing symbol for match in {}: {}", 
+                         path.display(), ast_error);
+            }
+        }
+    }
+
+    Ok(SearchResult {
+        has_match: has_any_match,
+        stats: None,
+    })
+}
+
+/// A simple sink that collects match byte ranges.
+struct MatchCollector<'a> {
+    matches: &'a mut Vec<(usize, usize)>,
+}
+
+impl<'a> MatchCollector<'a> {
+    fn new(matches: &'a mut Vec<(usize, usize)>) -> Self {
+        Self { matches }
+    }
+}
+
+impl<'a> grep::searcher::Sink for MatchCollector<'a> {
+    type Error = io::Error;
+
+    fn matched(
+        &mut self,
+        _searcher: &grep::searcher::Searcher,
+        mat: &grep::searcher::SinkMatch<'_>,
+    ) -> Result<bool, Self::Error> {
+        let start = mat.absolute_byte_offset() as usize;
+        let end = start + mat.bytes().len();
+        self.matches.push((start, end));
+        Ok(true)
+    }
+
+    fn context(
+        &mut self,
+        _searcher: &grep::searcher::Searcher,
+        _context: &grep::searcher::SinkContext<'_>,
+    ) -> Result<bool, Self::Error> {
+        Ok(true)
+    }
+
+    fn context_break(
+        &mut self,
+        _searcher: &grep::searcher::Searcher,
+    ) -> Result<bool, Self::Error> {
+        Ok(true)
+    }
+
+    fn begin(
+        &mut self,
+        _searcher: &grep::searcher::Searcher,
+    ) -> Result<bool, Self::Error> {
+        Ok(true)
+    }
+
+    fn finish(
+        &mut self,
+        _searcher: &grep::searcher::Searcher,
+        _finish: &grep::searcher::SinkFinish,
+    ) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
+
+/// Legacy function for compatibility.
+fn search_path<M: Matcher, W: WriteColor>(
+    matcher: M,
+    searcher: &mut grep::searcher::Searcher,
+    printer: &mut Printer<W>,
+    path: &Path,
+) -> io::Result<SearchResult> {
+    search_path_standard(matcher, searcher, printer, path)
 }
 
 /// Search the contents of the given reader using the given matcher, searcher
