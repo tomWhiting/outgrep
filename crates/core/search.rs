@@ -918,10 +918,26 @@ impl<'a, M: Matcher, W: WriteColor> AstSymbolSink<'a, M, W> {
         let highlighter = SyntaxHighlighter::new();
         let highlighted_content = highlighter.highlight_with_ast(symbol_content, &self.ast_calculator);
         
-        // Add line numbers to the output
+        // Add line numbers to the output with match highlighting
         let start_line = self.byte_to_line(symbol_start);
+        let original_lines: Vec<&str> = symbol_content.lines().collect();
+        
         for (i, line) in highlighted_content.lines().enumerate() {
-            println!("{}:{}", start_line + i, line);
+            let current_line = start_line + i;
+            let original_line = original_lines.get(i).unwrap_or(&"");
+            
+            // Check if this line contains any of our original matches
+            let has_match = self.original_matches.iter().any(|(match_start, match_end)| {
+                let line_start_byte = symbol_start + original_lines.iter().take(i).map(|l| l.len() + 1).sum::<usize>();
+                let line_end_byte = line_start_byte + original_line.len();
+                *match_start >= line_start_byte && *match_start < line_end_byte
+            });
+            
+            if has_match {
+                println!("\x1b[1;32m{}\x1b[0m:{}", current_line, line);  // Green bold line number
+            } else {
+                println!("{}:{}", current_line, line);
+            }
         }
 
         Ok(())
