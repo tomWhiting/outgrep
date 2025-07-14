@@ -1,0 +1,1013 @@
+[
+  {
+    "name": "ast-grep/ast-grep",
+    "category": "AST Analysis",
+    "description": "A fast and polyglot tool for code structural search, lint, and rewriting",
+    "relevance_score": 10,
+    "key_technologies": [
+      "Rust",
+      "Tree-sitter",
+      "AST",
+      "Pattern matching",
+      "Multi-language"
+    ],
+    "strengths": [
+      "Tree-sitter integration",
+      "Multi-language support",
+      "Pattern matching",
+      "Performance optimization",
+      "Rule-based system"
+    ],
+    "weaknesses": [
+      "No semantic search",
+      "Limited to structural patterns",
+      "No vector embeddings",
+      "No context awareness"
+    ],
+    "learning_opportunities": [
+      "Tree-sitter integration patterns",
+      "Multi-language AST handling",
+      "Pattern matching algorithms",
+      "Performance optimization",
+      "Rule-based system design"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "Extremely High - foundational architecture",
+      "semantic_search": "Low - no semantic capabilities",
+      "background_processing": "Medium - incremental parsing",
+      "user_interface": "High - CLI design patterns"
+    }
+  },
+  {
+    "name": "afnanenayet/diffsitter",
+    "category": "AST Analysis",
+    "description": "A tree-sitter based AST difftool to get meaningful semantic diffs",
+    "relevance_score": 8,
+    "key_technologies": [
+      "Rust",
+      "Tree-sitter",
+      "AST diff",
+      "Semantic comparison",
+      "Multi-language"
+    ],
+    "strengths": [
+      "Semantic diffing",
+      "Tree-sitter integration",
+      "Multi-language support",
+      "Performance optimization",
+      "Visual output"
+    ],
+    "weaknesses": [
+      "Limited to diffing",
+      "No search capabilities",
+      "No semantic embeddings",
+      "No background processing"
+    ],
+    "learning_opportunities": [
+      "AST comparison algorithms",
+      "Tree-sitter usage patterns",
+      "Semantic diff techniques",
+      "Multi-language parsing",
+      "Performance optimization"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "High - AST comparison and tree-sitter patterns",
+      "semantic_search": "Low - no semantic capabilities",
+      "background_processing": "Low - not applicable",
+      "user_interface": "Medium - diff visualization"
+    }
+  },
+  {
+    "name": "watchexec/watchexec",
+    "category": "Background Processing",
+    "description": "Executes commands in response to file modifications",
+    "relevance_score": 9,
+    "key_technologies": [
+      "Rust",
+      "File watching",
+      "Event processing",
+      "Cross-platform",
+      "Async processing"
+    ],
+    "strengths": [
+      "File system monitoring",
+      "Event filtering",
+      "Cross-platform support",
+      "Performance optimization",
+      "Modular architecture"
+    ],
+    "weaknesses": [
+      "No code analysis",
+      "No search capabilities",
+      "Command execution focus",
+      "No semantic understanding"
+    ],
+    "learning_opportunities": [
+      "File system monitoring",
+      "Event processing patterns",
+      "Cross-platform compatibility",
+      "Performance optimization",
+      "Modular crate design"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "Low - no analysis capabilities",
+      "semantic_search": "Low - not applicable",
+      "background_processing": "Extremely High - core architecture for Early Intervention",
+      "user_interface": "Medium - CLI patterns"
+    }
+  },
+  {
+    "name": "getgrit/gritql",
+    "category": "Code Search",
+    "description": "GritQL is a query language for searching and modifying source code",
+    "relevance_score": 9,
+    "key_technologies": [
+      "Rust",
+      "Pattern matching",
+      "Code transformation",
+      "Multi-language",
+      "Query language"
+    ],
+    "strengths": [
+      "Advanced pattern matching",
+      "Code transformation",
+      "Multi-language support",
+      "Query language design",
+      "Performance optimization"
+    ],
+    "weaknesses": [
+      "No semantic search",
+      "Limited to structural patterns",
+      "No vector embeddings",
+      "No background processing"
+    ],
+    "learning_opportunities": [
+      "Query language design",
+      "Pattern matching algorithms",
+      "Code transformation techniques",
+      "Multi-language support",
+      "Performance optimization"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "High - advanced pattern matching",
+      "semantic_search": "Low - no semantic capabilities",
+      "background_processing": "Low - not applicable",
+      "user_interface": "High - query language design"
+    }
+  },
+  {
+    "name": "instant-labs/voy",
+    "category": "Vector Search",
+    "description": "A WASM vector similarity search engine",
+    "relevance_score": 8,
+    "key_technologies": [
+      "Rust",
+      "WASM",
+      "Vector search",
+      "Similarity search",
+      "Memory efficiency"
+    ],
+    "strengths": [
+      "Lightweight vector search",
+      "WASM compatibility",
+      "Memory efficiency",
+      "No database required",
+      "Serializable indices"
+    ],
+    "weaknesses": [
+      "Limited to vector search",
+      "No structural analysis",
+      "No code understanding",
+      "Basic functionality"
+    ],
+    "learning_opportunities": [
+      "Vector search algorithms",
+      "WASM integration",
+      "Memory-efficient indexing",
+      "Serializable data structures",
+      "Lightweight architecture"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "Low - no structural capabilities",
+      "semantic_search": "Extremely High - core vector search foundation",
+      "background_processing": "Medium - indexing patterns",
+      "user_interface": "Low - library focus"
+    }
+  },
+  {
+    "name": "rustviz/crabviz",
+    "category": "Code Visualization",
+    "description": "A LSP-based tool to visualize Rust code dependencies",
+    "relevance_score": 7,
+    "key_technologies": [
+      "Rust",
+      "LSP",
+      "Graph visualization",
+      "Dependency analysis",
+      "VSCode integration"
+    ],
+    "strengths": [
+      "LSP integration",
+      "Graph visualization",
+      "Dependency analysis",
+      "VSCode extension",
+      "Real-time analysis"
+    ],
+    "weaknesses": [
+      "Rust-specific",
+      "No search capabilities",
+      "Limited to visualization",
+      "No semantic analysis"
+    ],
+    "learning_opportunities": [
+      "LSP integration patterns",
+      "Graph visualization",
+      "Dependency analysis",
+      "VSCode extension development",
+      "Real-time code analysis"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "Medium - dependency analysis",
+      "semantic_search": "Low - no semantic capabilities",
+      "background_processing": "Medium - LSP patterns",
+      "user_interface": "High - visualization and editor integration"
+    }
+  },
+  {
+    "name": "mtshiba/pylyzer",
+    "category": "Static Analysis",
+    "description": "A fast, feature-rich static analyzer & language server for Python",
+    "relevance_score": 7,
+    "key_technologies": [
+      "Rust",
+      "Python analysis",
+      "LSP",
+      "Static analysis",
+      "Type checking"
+    ],
+    "strengths": [
+      "Fast Python static analysis",
+      "LSP integration",
+      "Type inference",
+      "Error detection",
+      "Performance optimization"
+    ],
+    "weaknesses": [
+      "Python-specific",
+      "Limited to static analysis",
+      "No semantic search",
+      "No vector embeddings"
+    ],
+    "learning_opportunities": [
+      "Language server architecture",
+      "Static analysis techniques",
+      "Type inference algorithms",
+      "Performance optimization for large codebases",
+      "Error reporting and diagnostics"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "High - demonstrates advanced static analysis techniques",
+      "semantic_search": "Low - no semantic capabilities",
+      "background_processing": "Medium - LSP background operations",
+      "user_interface": "Medium - editor integration patterns"
+    }
+  },
+  {
+    "name": "klee/klee",
+    "category": "Formal Verification",
+    "description": "Symbolic execution engine for C programs",
+    "relevance_score": 4,
+    "key_technologies": [
+      "C++",
+      "LLVM",
+      "Symbolic execution",
+      "Formal verification",
+      "Constraint solving"
+    ],
+    "strengths": [
+      "Deep program analysis",
+      "Symbolic execution",
+      "Path exploration",
+      "Constraint solving",
+      "Formal verification"
+    ],
+    "weaknesses": [
+      "C-specific",
+      "Complex setup",
+      "Limited scalability",
+      "No code search focus"
+    ],
+    "learning_opportunities": [
+      "Symbolic execution techniques",
+      "Constraint solving algorithms",
+      "Program analysis methods",
+      "LLVM integration",
+      "Formal verification approaches"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "Medium - advanced program analysis concepts",
+      "semantic_search": "Low - no semantic search capabilities",
+      "background_processing": "Low - not relevant",
+      "user_interface": "Low - command-line tool"
+    }
+  },
+  {
+    "name": "Kristories/awesome-guidelines",
+    "category": "Documentation",
+    "description": "A curated list of high quality coding style conventions and standards",
+    "relevance_score": 3,
+    "key_technologies": [
+      "Markdown",
+      "Documentation",
+      "Guidelines",
+      "Best practices"
+    ],
+    "strengths": [
+      "Comprehensive guidelines",
+      "Well-organized",
+      "Community-driven",
+      "Multiple languages"
+    ],
+    "weaknesses": [
+      "Documentation only",
+      "No code functionality",
+      "Static content",
+      "No technical implementation"
+    ],
+    "learning_opportunities": [
+      "Documentation organization",
+      "Community standards",
+      "Code quality guidelines",
+      "Project structure"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "Low - no technical implementation",
+      "semantic_search": "Low - documentation only",
+      "background_processing": "Low - not relevant",
+      "user_interface": "Low - not applicable"
+    }
+  },
+  {
+    "name": "open-telemetry/weaver",
+    "category": "Observability",
+    "description": "Tool for managing OpenTelemetry semantic conventions schemas",
+    "relevance_score": 5,
+    "key_technologies": [
+      "Rust",
+      "OpenTelemetry",
+      "Schema management",
+      "Code generation",
+      "YAML processing"
+    ],
+    "strengths": [
+      "Schema management",
+      "Code generation",
+      "Multi-language support",
+      "Template processing",
+      "Validation systems"
+    ],
+    "weaknesses": [
+      "Domain-specific",
+      "Limited to telemetry",
+      "No search capabilities",
+      "No semantic analysis"
+    ],
+    "learning_opportunities": [
+      "Schema management techniques",
+      "Code generation patterns",
+      "Template processing",
+      "Multi-language code generation",
+      "Validation frameworks"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "Medium - code generation and schema analysis",
+      "semantic_search": "Low - no semantic capabilities",
+      "background_processing": "Low - not relevant",
+      "user_interface": "Low - CLI tool"
+    }
+  },
+  {
+    "name": "BurntSushi/ripgrep",
+    "category": "Text Search",
+    "description": "High-performance line-oriented text search tool",
+    "relevance_score": 8,
+    "key_technologies": [
+      "Rust",
+      "Regex",
+      "Parallel processing",
+      "Memory mapping",
+      "Performance optimization"
+    ],
+    "strengths": [
+      "Exceptional performance",
+      "Parallel processing",
+      "Memory efficiency",
+      "Regex support",
+      "Cross-platform"
+    ],
+    "weaknesses": [
+      "Text-only search",
+      "No semantic understanding",
+      "No AST analysis",
+      "Limited to pattern matching"
+    ],
+    "learning_opportunities": [
+      "High-performance text search",
+      "Parallel processing techniques",
+      "Memory-efficient algorithms",
+      "Regex optimization",
+      "File system traversal"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "Medium - fast text processing techniques",
+      "semantic_search": "Low - no semantic capabilities",
+      "background_processing": "High - parallel processing patterns",
+      "user_interface": "Medium - CLI design patterns"
+    }
+  },
+  {
+    "name": "alexpovel/srgn",
+    "category": "Text Processing",
+    "description": "A code surgeon for precise text and code transformations",
+    "relevance_score": 6,
+    "key_technologies": [
+      "Rust",
+      "Tree-sitter",
+      "Text processing",
+      "Code transformations",
+      "Pattern matching"
+    ],
+    "strengths": [
+      "Tree-sitter integration",
+      "Precise transformations",
+      "Multi-language support",
+      "Structural awareness",
+      "Code surgery metaphor"
+    ],
+    "weaknesses": [
+      "Limited to transformations",
+      "No search capabilities",
+      "No semantic analysis",
+      "Focused on modifications"
+    ],
+    "learning_opportunities": [
+      "Tree-sitter usage patterns",
+      "Code transformation techniques",
+      "Multi-language parsing",
+      "Structural code manipulation",
+      "Precise text processing"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "High - tree-sitter integration and structural awareness",
+      "semantic_search": "Low - no semantic capabilities",
+      "background_processing": "Medium - processing patterns",
+      "user_interface": "Medium - CLI design"
+    }
+  },
+  {
+    "name": "TencentCodeAnalysis/CodeAnalysis",
+    "category": "Static Analysis",
+    "description": "Comprehensive static analysis platform for multiple languages",
+    "relevance_score": 7,
+    "key_technologies": [
+      "Python",
+      "Static analysis",
+      "Multi-language",
+      "Web interface",
+      "Distributed processing"
+    ],
+    "strengths": [
+      "Multi-language support",
+      "Web interface",
+      "Distributed architecture",
+      "Comprehensive analysis",
+      "Enterprise-grade"
+    ],
+    "weaknesses": [
+      "Complex setup",
+      "Heavy infrastructure",
+      "No semantic search",
+      "No vector embeddings"
+    ],
+    "learning_opportunities": [
+      "Multi-language analysis architecture",
+      "Web-based analysis interfaces",
+      "Distributed processing patterns",
+      "Enterprise-scale analysis",
+      "Integration with development workflows"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "High - comprehensive multi-language analysis",
+      "semantic_search": "Low - no semantic capabilities",
+      "background_processing": "Medium - distributed processing patterns",
+      "user_interface": "Medium - web interface design"
+    }
+  },
+  {
+    "name": "nextest-rs/nextest",
+    "category": "Testing Infrastructure",
+    "description": "A next-generation test runner for Rust",
+    "relevance_score": 5,
+    "key_technologies": [
+      "Rust",
+      "Test execution",
+      "Parallel testing",
+      "JSON output",
+      "Performance optimization"
+    ],
+    "strengths": [
+      "Parallel test execution",
+      "Rich output formats",
+      "Performance optimization",
+      "Configuration flexibility",
+      "Integration with CI/CD"
+    ],
+    "weaknesses": [
+      "Rust-specific",
+      "Testing focus only",
+      "No search capabilities",
+      "Limited to test domain"
+    ],
+    "learning_opportunities": [
+      "Parallel execution patterns",
+      "Performance optimization",
+      "Configuration management",
+      "Output formatting",
+      "CLI design patterns"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "Low - not relevant",
+      "semantic_search": "Low - not applicable",
+      "background_processing": "Medium - parallel processing patterns",
+      "user_interface": "Medium - CLI design"
+    }
+  },
+  {
+    "name": "xd009642/tarpaulin",
+    "category": "Testing Infrastructure",
+    "description": "Code coverage tool for Rust",
+    "relevance_score": 4,
+    "key_technologies": [
+      "Rust",
+      "Code coverage",
+      "LLVM",
+      "Instrumentation",
+      "Static analysis"
+    ],
+    "strengths": [
+      "Code coverage analysis",
+      "LLVM integration",
+      "Instrumentation techniques",
+      "Performance optimization",
+      "CI/CD integration"
+    ],
+    "weaknesses": [
+      "Rust-specific",
+      "Coverage focus only",
+      "No search capabilities",
+      "Limited domain"
+    ],
+    "learning_opportunities": [
+      "Code instrumentation techniques",
+      "LLVM integration patterns",
+      "Static analysis for coverage",
+      "Performance optimization",
+      "CI/CD integration"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "Medium - code analysis techniques",
+      "semantic_search": "Low - not applicable",
+      "background_processing": "Low - not relevant",
+      "user_interface": "Low - coverage reporting"
+    }
+  },
+  {
+    "name": "codespell-project/codespell",
+    "category": "Text Processing",
+    "description": "Check code for common misspellings",
+    "relevance_score": 3,
+    "key_technologies": [
+      "Python",
+      "Spell checking",
+      "Text processing",
+      "Dictionary matching",
+      "File processing"
+    ],
+    "strengths": [
+      "Spell checking",
+      "Dictionary-based",
+      "File processing",
+      "Simple interface",
+      "Language detection"
+    ],
+    "weaknesses": [
+      "Basic functionality",
+      "No structural analysis",
+      "No semantic understanding",
+      "Limited scope"
+    ],
+    "learning_opportunities": [
+      "Text processing patterns",
+      "Dictionary-based matching",
+      "File traversal techniques",
+      "Simple CLI design",
+      "Language detection"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "Low - basic text processing",
+      "semantic_search": "Low - no semantic capabilities",
+      "background_processing": "Low - not relevant",
+      "user_interface": "Low - simple CLI"
+    }
+  },
+  {
+    "name": "errata-ai/vale",
+    "category": "Text Processing",
+    "description": "Syntax-aware linter for prose",
+    "relevance_score": 5,
+    "key_technologies": [
+      "Go",
+      "Natural language processing",
+      "Syntax analysis",
+      "Rule engine",
+      "Configuration management"
+    ],
+    "strengths": [
+      "Syntax-aware analysis",
+      "Rule-based linting",
+      "Configuration flexibility",
+      "Multi-format support",
+      "Natural language processing"
+    ],
+    "weaknesses": [
+      "Prose-focused",
+      "No code analysis",
+      "Limited to text",
+      "No semantic search"
+    ],
+    "learning_opportunities": [
+      "Rule-based analysis systems",
+      "Configuration management",
+      "Natural language processing",
+      "Syntax-aware processing",
+      "Multi-format support"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "Medium - syntax-aware analysis concepts",
+      "semantic_search": "Low - no semantic capabilities",
+      "background_processing": "Low - not relevant",
+      "user_interface": "Low - CLI tool"
+    }
+  },
+  {
+    "name": "glyptodon/emerge",
+    "category": "Code Visualization",
+    "description": "Code analysis and visualization for large codebases",
+    "relevance_score": 6,
+    "key_technologies": [
+      "Python",
+      "Code analysis",
+      "Visualization",
+      "Dependency analysis",
+      "Graph generation"
+    ],
+    "strengths": [
+      "Large codebase analysis",
+      "Dependency visualization",
+      "Graph generation",
+      "Multi-language support",
+      "Scalable analysis"
+    ],
+    "weaknesses": [
+      "Visualization focus",
+      "No search capabilities",
+      "No semantic analysis",
+      "Limited to structure"
+    ],
+    "learning_opportunities": [
+      "Large codebase analysis",
+      "Dependency graph construction",
+      "Visualization techniques",
+      "Scalable analysis patterns",
+      "Multi-language processing"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "High - dependency analysis and structural visualization",
+      "semantic_search": "Low - no semantic capabilities",
+      "background_processing": "Medium - large-scale processing",
+      "user_interface": "Medium - visualization patterns"
+    }
+  },
+  {
+    "name": "rustviz/rustviz",
+    "category": "Code Visualization",
+    "description": "Visualization tool for Rust ownership and borrowing",
+    "relevance_score": 5,
+    "key_technologies": [
+      "Rust",
+      "Ownership visualization",
+      "Borrowing analysis",
+      "Educational tool",
+      "SVG generation"
+    ],
+    "strengths": [
+      "Ownership visualization",
+      "Educational value",
+      "Rust-specific insights",
+      "SVG generation",
+      "Memory safety illustration"
+    ],
+    "weaknesses": [
+      "Rust-specific",
+      "Educational focus",
+      "No search capabilities",
+      "Limited scope"
+    ],
+    "learning_opportunities": [
+      "Ownership analysis techniques",
+      "Educational visualization",
+      "SVG generation patterns",
+      "Memory safety analysis",
+      "Rust-specific tooling"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "Medium - ownership and borrowing analysis",
+      "semantic_search": "Low - not applicable",
+      "background_processing": "Low - not relevant",
+      "user_interface": "Medium - visualization techniques"
+    }
+  },
+  {
+    "name": "microsoft/codespan",
+    "category": "AST Analysis",
+    "description": "Beautiful diagnostic reporting for text-based programming languages",
+    "relevance_score": 6,
+    "key_technologies": [
+      "Rust",
+      "Diagnostic reporting",
+      "Error formatting",
+      "Source location",
+      "Pretty printing"
+    ],
+    "strengths": [
+      "Beautiful diagnostics",
+      "Source location tracking",
+      "Error formatting",
+      "Multi-language support",
+      "Pretty printing"
+    ],
+    "weaknesses": [
+      "Reporting focus",
+      "No search capabilities",
+      "No semantic analysis",
+      "Limited to diagnostics"
+    ],
+    "learning_opportunities": [
+      "Diagnostic reporting techniques",
+      "Source location tracking",
+      "Error formatting patterns",
+      "Pretty printing algorithms",
+      "Multi-language diagnostic support"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "Medium - source location and diagnostic techniques",
+      "semantic_search": "Low - not applicable",
+      "background_processing": "Low - not relevant",
+      "user_interface": "High - diagnostic formatting and pretty printing"
+    }
+  },
+  {
+    "name": "crev-dev/cargo-crev",
+    "category": "Code Quality",
+    "description": "Cryptographically verifiable code review system for Rust",
+    "relevance_score": 4,
+    "key_technologies": [
+      "Rust",
+      "Cryptographic verification",
+      "Code review",
+      "Trust network",
+      "Dependency analysis"
+    ],
+    "strengths": [
+      "Cryptographic verification",
+      "Trust networks",
+      "Code review systems",
+      "Dependency analysis",
+      "Security focus"
+    ],
+    "weaknesses": [
+      "Rust-specific",
+      "Review focus",
+      "No search capabilities",
+      "Complex trust model"
+    ],
+    "learning_opportunities": [
+      "Cryptographic verification",
+      "Trust network algorithms",
+      "Code review systems",
+      "Security-focused analysis",
+      "Dependency verification"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "Low - review focus",
+      "semantic_search": "Low - not applicable",
+      "background_processing": "Low - not relevant",
+      "user_interface": "Low - review interface"
+    }
+  },
+  {
+    "name": "qltysh/qlty",
+    "category": "Code Quality",
+    "description": "Universal code quality platform",
+    "relevance_score": 6,
+    "key_technologies": [
+      "Rust",
+      "Code quality",
+      "Multi-language",
+      "Plugin system",
+      "Analysis aggregation"
+    ],
+    "strengths": [
+      "Universal platform",
+      "Plugin architecture",
+      "Multi-language support",
+      "Quality aggregation",
+      "Extensible design"
+    ],
+    "weaknesses": [
+      "Quality focus",
+      "No search capabilities",
+      "No semantic analysis",
+      "Complex platform"
+    ],
+    "learning_opportunities": [
+      "Plugin architecture design",
+      "Multi-language quality analysis",
+      "Analysis aggregation patterns",
+      "Extensible system design",
+      "Quality metric collection"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "Medium - multi-language analysis patterns",
+      "semantic_search": "Low - not applicable",
+      "background_processing": "Medium - analysis aggregation",
+      "user_interface": "Medium - quality reporting"
+    }
+  },
+  {
+    "name": "preslavmihaylov/todocheck",
+    "category": "Code Quality",
+    "description": "Tool for tracking TODO comments and linking them to issues",
+    "relevance_score": 4,
+    "key_technologies": [
+      "Go",
+      "TODO tracking",
+      "Issue linking",
+      "Code parsing",
+      "Integration systems"
+    ],
+    "strengths": [
+      "TODO comment tracking",
+      "Issue integration",
+      "Code parsing",
+      "Project management",
+      "Automation"
+    ],
+    "weaknesses": [
+      "Narrow focus",
+      "No search capabilities",
+      "No semantic analysis",
+      "Limited scope"
+    ],
+    "learning_opportunities": [
+      "Comment parsing techniques",
+      "Issue tracking integration",
+      "Code scanning patterns",
+      "Project management automation",
+      "Multi-platform integration"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "Low - comment parsing only",
+      "semantic_search": "Low - not applicable",
+      "background_processing": "Low - not relevant",
+      "user_interface": "Low - simple reporting"
+    }
+  },
+  {
+    "name": "opentelemetry-rust/opentelemetry-rust",
+    "category": "Observability",
+    "description": "OpenTelemetry implementation for Rust",
+    "relevance_score": 5,
+    "key_technologies": [
+      "Rust",
+      "OpenTelemetry",
+      "Observability",
+      "Tracing",
+      "Metrics"
+    ],
+    "strengths": [
+      "Observability patterns",
+      "Tracing systems",
+      "Metrics collection",
+      "Distributed tracing",
+      "Performance monitoring"
+    ],
+    "weaknesses": [
+      "Observability focus",
+      "No search capabilities",
+      "No code analysis",
+      "Domain-specific"
+    ],
+    "learning_opportunities": [
+      "Observability patterns",
+      "Tracing system design",
+      "Metrics collection",
+      "Performance monitoring",
+      "Distributed system patterns"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "Low - observability focus",
+      "semantic_search": "Low - not applicable",
+      "background_processing": "Medium - tracing and monitoring patterns",
+      "user_interface": "Low - observability interface"
+    }
+  },
+  {
+    "name": "gaucho-matrero/tach",
+    "category": "Dependency Analysis",
+    "description": "Dependency analysis and architecture enforcement tool",
+    "relevance_score": 6,
+    "key_technologies": [
+      "Rust",
+      "Dependency analysis",
+      "Architecture enforcement",
+      "Graph algorithms",
+      "Rule enforcement"
+    ],
+    "strengths": [
+      "Dependency analysis",
+      "Architecture enforcement",
+      "Graph algorithms",
+      "Rule-based systems",
+      "Structural validation"
+    ],
+    "weaknesses": [
+      "Dependency focus",
+      "No search capabilities",
+      "No semantic analysis",
+      "Limited to structure"
+    ],
+    "learning_opportunities": [
+      "Dependency graph analysis",
+      "Architecture enforcement",
+      "Rule-based validation",
+      "Graph algorithms",
+      "Structural analysis"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "High - dependency and structural analysis",
+      "semantic_search": "Low - not applicable",
+      "background_processing": "Medium - analysis patterns",
+      "user_interface": "Medium - analysis reporting"
+    }
+  },
+  {
+    "name": "GreptimeTeam/greptimedb",
+    "category": "Database Infrastructure",
+    "description": "Cloud-native time series database",
+    "relevance_score": 3,
+    "key_technologies": [
+      "Rust",
+      "Time series",
+      "Database",
+      "Cloud-native",
+      "Distributed systems"
+    ],
+    "strengths": [
+      "Time series optimization",
+      "Cloud-native design",
+      "Distributed architecture",
+      "Performance optimization",
+      "Scalability"
+    ],
+    "weaknesses": [
+      "Database focus",
+      "No search capabilities",
+      "No code analysis",
+      "Domain-specific"
+    ],
+    "learning_opportunities": [
+      "Time series optimization",
+      "Distributed database design",
+      "Cloud-native patterns",
+      "Performance optimization",
+      "Scalability techniques"
+    ],
+    "greph_applicability": {
+      "structural_analysis": "Low - database focus",
+      "semantic_search": "Low - not applicable",
+      "background_processing": "Medium - distributed processing patterns",
+      "user_interface": "Low - database interface"
+    }
+  }
+]
