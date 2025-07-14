@@ -1,5 +1,5 @@
-use std::ops::Range;
 use instant_distance::{HnswMap, Point, Search};
+use std::ops::Range;
 
 /// Wrapper around Vec<f32> that implements Point trait
 #[derive(Debug, Clone)]
@@ -8,7 +8,8 @@ pub struct EmbeddingPoint(pub Vec<f32>);
 impl Point for EmbeddingPoint {
     fn distance(&self, other: &Self) -> f32 {
         // Euclidean distance
-        self.0.iter()
+        self.0
+            .iter()
             .zip(other.0.iter())
             .map(|(a, b)| (a - b).powi(2))
             .sum::<f32>()
@@ -62,7 +63,7 @@ pub struct SemanticIndex {
 impl Default for SemanticConfig {
     fn default() -> Self {
         Self {
-            similarity_threshold: 0.2,  // 20% similarity threshold
+            similarity_threshold: 0.2, // 20% similarity threshold
             max_results: 10,
             embedding_dimensions: 384,
         }

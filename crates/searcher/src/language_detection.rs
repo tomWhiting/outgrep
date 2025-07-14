@@ -191,57 +191,71 @@ where
     fn get_syntax_nodes(&self) -> Vec<(std::ops::Range<usize>, String)> {
         // Simple string-based approach for clean syntax highlighting
         // This avoids AST node fragmentation issues and external dependencies
-        
+
         let root = self.get_root_node();
         let content = root.text();
         let mut tokens = Vec::new();
-        
+
         // Define keywords for different languages
         let keywords = [
             // Rust keywords
-            "fn", "let", "mut", "const", "if", "else", "for", "while", "loop", "match", 
-            "return", "struct", "enum", "impl", "trait", "pub", "use", "mod", "crate", 
-            "self", "super", "where", "unsafe", "async", "await", "true", "false", "None", "Some",
-            
+            "fn", "let", "mut", "const", "if", "else", "for", "while", "loop",
+            "match", "return", "struct", "enum", "impl", "trait", "pub",
+            "use", "mod", "crate", "self", "super", "where", "unsafe",
+            "async", "await", "true", "false", "None", "Some",
             // Python keywords
-            "def", "class", "import", "from", "elif", "try", "except", "finally", 
-            "with", "as", "yield", "break", "continue", "pass", "lambda", "global", 
-            "nonlocal", "True", "False",
-            
+            "def", "class", "import", "from", "elif", "try", "except",
+            "finally", "with", "as", "yield", "break", "continue", "pass",
+            "lambda", "global", "nonlocal", "True", "False",
             // Common keywords across languages
-            "if", "else", "for", "while", "return", "import", "true", "false", "null",
+            "if", "else", "for", "while", "return", "import", "true", "false",
+            "null",
         ];
-        
+
         // Find keyword matches
         for keyword in keywords.iter() {
             let mut start = 0;
             while let Some(pos) = content[start..].find(keyword) {
                 let abs_pos = start + pos;
                 let end_pos = abs_pos + keyword.len();
-                
+
                 // Check word boundaries (simple approach)
-                let before_ok = abs_pos == 0 || 
-                    !content.chars().nth(abs_pos - 1).unwrap_or(' ').is_alphanumeric();
-                let after_ok = end_pos >= content.len() || 
-                    !content.chars().nth(end_pos).unwrap_or(' ').is_alphanumeric();
-                
+                let before_ok = abs_pos == 0
+                    || !content
+                        .chars()
+                        .nth(abs_pos - 1)
+                        .unwrap_or(' ')
+                        .is_alphanumeric();
+                let after_ok = end_pos >= content.len()
+                    || !content
+                        .chars()
+                        .nth(end_pos)
+                        .unwrap_or(' ')
+                        .is_alphanumeric();
+
                 if before_ok && after_ok {
                     let range = abs_pos..end_pos;
-                    
+
                     // Check for overlaps
-                    let overlaps = tokens.iter().any(|(existing_range, _): &(std::ops::Range<usize>, String)| {
-                        range.start < existing_range.end && existing_range.start < range.end
-                    });
-                    
+                    let overlaps = tokens.iter().any(
+                        |(existing_range, _): &(
+                            std::ops::Range<usize>,
+                            String,
+                        )| {
+                            range.start < existing_range.end
+                                && existing_range.start < range.end
+                        },
+                    );
+
                     if !overlaps {
                         tokens.push((range, "keyword".to_string()));
                     }
                 }
-                
+
                 start = abs_pos + 1;
             }
         }
-        
+
         // Find string literals (simple quotes)
         let string_patterns = ['"', '\''];
         for quote in string_patterns.iter() {
@@ -251,23 +265,29 @@ where
                 if let Some(end_pos) = content[abs_start + 1..].find(*quote) {
                     let abs_end = abs_start + 1 + end_pos + 1;
                     let range = abs_start..abs_end;
-                    
+
                     // Check for overlaps
-                    let overlaps = tokens.iter().any(|(existing_range, _): &(std::ops::Range<usize>, String)| {
-                        range.start < existing_range.end && existing_range.start < range.end
-                    });
-                    
+                    let overlaps = tokens.iter().any(
+                        |(existing_range, _): &(
+                            std::ops::Range<usize>,
+                            String,
+                        )| {
+                            range.start < existing_range.end
+                                && existing_range.start < range.end
+                        },
+                    );
+
                     if !overlaps {
                         tokens.push((range, "string".to_string()));
                     }
-                    
+
                     start = abs_end;
                 } else {
                     break;
                 }
             }
         }
-        
+
         // Find comments
         let mut start = 0;
         while let Some(pos) = content[start..].find("//") {
@@ -275,31 +295,43 @@ where
             if let Some(end_pos) = content[abs_pos..].find('\n') {
                 let abs_end = abs_pos + end_pos;
                 let range = abs_pos..abs_end;
-                
+
                 // Check for overlaps
-                let overlaps = tokens.iter().any(|(existing_range, _): &(std::ops::Range<usize>, String)| {
-                    range.start < existing_range.end && existing_range.start < range.end
-                });
-                
+                let overlaps = tokens.iter().any(
+                    |(existing_range, _): &(
+                        std::ops::Range<usize>,
+                        String,
+                    )| {
+                        range.start < existing_range.end
+                            && existing_range.start < range.end
+                    },
+                );
+
                 if !overlaps {
                     tokens.push((range, "comment".to_string()));
                 }
-                
+
                 start = abs_end;
             } else {
                 // Comment to end of file
                 let range = abs_pos..content.len();
-                let overlaps = tokens.iter().any(|(existing_range, _): &(std::ops::Range<usize>, String)| {
-                    range.start < existing_range.end && existing_range.start < range.end
-                });
-                
+                let overlaps = tokens.iter().any(
+                    |(existing_range, _): &(
+                        std::ops::Range<usize>,
+                        String,
+                    )| {
+                        range.start < existing_range.end
+                            && existing_range.start < range.end
+                    },
+                );
+
                 if !overlaps {
                     tokens.push((range, "comment".to_string()));
                 }
                 break;
             }
         }
-        
+
         // Find Python-style comments
         start = 0;
         while let Some(pos) = content[start..].find('#') {
@@ -307,29 +339,41 @@ where
             if let Some(end_pos) = content[abs_pos..].find('\n') {
                 let abs_end = abs_pos + end_pos;
                 let range = abs_pos..abs_end;
-                
-                let overlaps = tokens.iter().any(|(existing_range, _): &(std::ops::Range<usize>, String)| {
-                    range.start < existing_range.end && existing_range.start < range.end
-                });
-                
+
+                let overlaps = tokens.iter().any(
+                    |(existing_range, _): &(
+                        std::ops::Range<usize>,
+                        String,
+                    )| {
+                        range.start < existing_range.end
+                            && existing_range.start < range.end
+                    },
+                );
+
                 if !overlaps {
                     tokens.push((range, "comment".to_string()));
                 }
-                
+
                 start = abs_end;
             } else {
                 let range = abs_pos..content.len();
-                let overlaps = tokens.iter().any(|(existing_range, _): &(std::ops::Range<usize>, String)| {
-                    range.start < existing_range.end && existing_range.start < range.end
-                });
-                
+                let overlaps = tokens.iter().any(
+                    |(existing_range, _): &(
+                        std::ops::Range<usize>,
+                        String,
+                    )| {
+                        range.start < existing_range.end
+                            && existing_range.start < range.end
+                    },
+                );
+
                 if !overlaps {
                     tokens.push((range, "comment".to_string()));
                 }
                 break;
             }
         }
-        
+
         // Sort by start position
         tokens.sort_by_key(|(range, _)| range.start);
         tokens
