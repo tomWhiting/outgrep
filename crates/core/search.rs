@@ -172,7 +172,10 @@ impl SearchWorkerBuilder {
     /// instead of showing fixed line-based context.
     ///
     /// By default, AST context is disabled.
-    pub(crate) fn ast_context(&mut self, yes: bool) -> &mut SearchWorkerBuilder {
+    pub(crate) fn ast_context(
+        &mut self,
+        yes: bool,
+    ) -> &mut SearchWorkerBuilder {
         self.config.use_ast_context = yes;
         self
     }
@@ -357,9 +360,21 @@ impl<W: WriteColor> SearchWorker<W> {
         let (searcher, printer) = (&mut self.searcher, &mut self.printer);
         let use_ast_context = self.config.use_ast_context;
         match self.matcher {
-            RustRegex(ref m) => search_path_with_context(m, searcher, printer, path, use_ast_context),
+            RustRegex(ref m) => search_path_with_context(
+                m,
+                searcher,
+                printer,
+                path,
+                use_ast_context,
+            ),
             #[cfg(feature = "pcre2")]
-            PCRE2(ref m) => search_path_with_context(m, searcher, printer, path, use_ast_context),
+            PCRE2(ref m) => search_path_with_context(
+                m,
+                searcher,
+                printer,
+                path,
+                use_ast_context,
+            ),
         }
     }
 
@@ -442,28 +457,27 @@ fn search_path_standard<M: Matcher, W: WriteColor>(
 /// Search using AST-based enclosing symbol context.
 fn search_path_ast_context<M: Matcher, W: WriteColor>(
     matcher: M,
-    searcher: &mut grep::searcher::Searcher, 
+    searcher: &mut grep::searcher::Searcher,
     printer: &mut Printer<W>,
     path: &Path,
 ) -> io::Result<SearchResult> {
     use grep::searcher::{
-        create_ast_calculator_for_file, default_context_types, is_supported_file,
+        create_ast_calculator_for_file, default_context_types,
+        is_supported_file,
     };
 
     // Check if this file type supports AST parsing - if not, skip entirely
     if !is_supported_file(path) {
-        return Ok(SearchResult {
-            has_match: false,
-            stats: None,
-        });
+        return Ok(SearchResult { has_match: false, stats: None });
     }
 
     // Read the file content for AST parsing
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| io::Error::new(
+    let content = std::fs::read_to_string(path).map_err(|e| {
+        io::Error::new(
             io::ErrorKind::InvalidInput,
             format!("Failed to read file for AST parsing: {}", e),
-        ))?;
+        )
+    })?;
 
     // Create AST calculator
     let ast_calculator = create_ast_calculator_for_file(
@@ -471,10 +485,12 @@ fn search_path_ast_context<M: Matcher, W: WriteColor>(
         &content,
         Some(default_context_types()),
     )
-    .map_err(|e| io::Error::new(
-        io::ErrorKind::InvalidInput,
-        format!("AST parsing failed: {}", e),
-    ))?;
+    .map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("AST parsing failed: {}", e),
+        )
+    })?;
 
     // Find all matches first using a temporary sink
     let mut temp_matches = Vec::new();
@@ -484,16 +500,13 @@ fn search_path_ast_context<M: Matcher, W: WriteColor>(
     }
 
     if temp_matches.is_empty() {
-        return Ok(SearchResult {
-            has_match: false,
-            stats: None,
-        });
+        return Ok(SearchResult { has_match: false, stats: None });
     }
 
     // Create AST-aware sink that uses the proper printer infrastructure
     let mut ast_sink = AstSymbolSink::new(
         printer,
-        &matcher, 
+        &matcher,
         path,
         ast_calculator,
         content,
@@ -503,10 +516,7 @@ fn search_path_ast_context<M: Matcher, W: WriteColor>(
     // Process all the matches through the AST sink
     let has_match = ast_sink.process_matches(&mut *searcher)?;
 
-    Ok(SearchResult {
-        has_match,
-        stats: ast_sink.stats(),
-    })
+    Ok(SearchResult { has_match, stats: ast_sink.stats() })
 }
 
 /// A simple sink that collects match byte ranges.
@@ -587,25 +597,23 @@ struct SyntaxColors {
 impl SyntaxColors {
     fn new() -> Self {
         Self {
-            keyword: "\x1b[35m".to_string(),      // Purple
-            string: "\x1b[32m".to_string(),       // Green
-            comment: "\x1b[90m".to_string(),      // Gray
-            number: "\x1b[36m".to_string(),       // Cyan
-            identifier: "\x1b[37m".to_string(),   // White
-            function: "\x1b[33m".to_string(),     // Yellow
-            type_name: "\x1b[34m".to_string(),    // Blue
-            operator: "\x1b[91m".to_string(),     // Bright red
-            punctuation: "\x1b[37m".to_string(),  // White
-            normal: "\x1b[0m".to_string(),        // Reset
+            keyword: "\x1b[35m".to_string(),     // Purple
+            string: "\x1b[32m".to_string(),      // Green
+            comment: "\x1b[90m".to_string(),     // Gray
+            number: "\x1b[36m".to_string(),      // Cyan
+            identifier: "\x1b[37m".to_string(),  // White
+            function: "\x1b[33m".to_string(),    // Yellow
+            type_name: "\x1b[34m".to_string(),   // Blue
+            operator: "\x1b[91m".to_string(),    // Bright red
+            punctuation: "\x1b[37m".to_string(), // White
+            normal: "\x1b[0m".to_string(),       // Reset
         }
     }
 }
 
 impl SyntaxHighlighter {
     fn new() -> Self {
-        Self {
-            colors: SyntaxColors::new(),
-        }
+        Self { colors: SyntaxColors::new() }
     }
 
     /// Apply syntax highlighting to source code using AST information.
@@ -626,12 +634,89 @@ impl SyntaxHighlighter {
         source: &str,
         _calc: &Box<dyn grep::searcher::AstCalculator>,
     ) -> String {
-        // TODO: Implement proper AST-based syntax highlighting
-        // For now, just return the source without highlighting to avoid the string matching mess
+        // Disable AST syntax highlighting for now due to range mismatches
+        // The AST ranges don't align with the symbol source ranges
         source.to_string()
     }
 
+    fn colorize_by_ast_kind(&self, text: &str, kind: &str) -> String {
+        let color = match kind {
+            // Rust/JavaScript/Python/Go keywords - using AST semantic types
+            kind if kind.contains("keyword")
+                || kind == "fn"
+                || kind == "let"
+                || kind == "const"
+                || kind == "function"
+                || kind == "def"
+                || kind == "class"
+                || kind == "if"
+                || kind == "else"
+                || kind == "for"
+                || kind == "while"
+                || kind == "return"
+                || kind == "import"
+                || kind == "export"
+                || kind == "struct"
+                || kind == "enum"
+                || kind == "impl"
+                || kind == "trait"
+                || kind == "pub"
+                || kind == "async"
+                || kind == "await" =>
+            {
+                &self.colors.keyword
+            }
 
+            // String literals
+            kind if kind.contains("string")
+                || kind.contains("char_literal") =>
+            {
+                &self.colors.string
+            }
+
+            // Numbers
+            kind if kind.contains("number")
+                || kind.contains("integer")
+                || kind.contains("float")
+                || kind.contains("decimal") =>
+            {
+                &self.colors.number
+            }
+
+            // Comments
+            kind if kind.contains("comment") => &self.colors.comment,
+
+            // Function names and calls
+            kind if kind.contains("function")
+                || kind.contains("call")
+                || kind == "function_item"
+                || kind == "function_declaration" =>
+            {
+                &self.colors.function
+            }
+
+            // Type identifiers
+            kind if kind.contains("type")
+                || kind == "type_identifier"
+                || kind.contains("primitive_type") =>
+            {
+                &self.colors.type_name
+            }
+
+            // Operators
+            kind if kind.contains("operator")
+                || kind.contains("binary")
+                || kind.contains("unary")
+                || kind.contains("assignment") =>
+            {
+                &self.colors.operator
+            }
+
+            _ => &self.colors.normal,
+        };
+
+        format!("{}{}{}", color, text, self.colors.normal)
+    }
 }
 
 /// AST-aware sink that outputs enclosing symbols with proper formatting.
@@ -665,17 +750,23 @@ impl<'a, M: Matcher, W: WriteColor> AstSymbolSink<'a, M, W> {
         }
     }
 
-    fn process_matches(&mut self, searcher: &mut grep::searcher::Searcher) -> io::Result<bool> {
+    fn process_matches(
+        &mut self,
+        searcher: &mut grep::searcher::Searcher,
+    ) -> io::Result<bool> {
         let mut output_ranges = std::collections::HashSet::new();
         let matches_copy = self.original_matches.clone();
 
         for (match_start, match_end) in matches_copy {
             let match_range = match_start..match_end;
-            
+
             match self.ast_calculator.calculate_context(match_range) {
                 Ok(context_result) => {
                     // Avoid outputting the same symbol multiple times
-                    if output_ranges.insert((context_result.range.start, context_result.range.end)) {
+                    if output_ranges.insert((
+                        context_result.range.start,
+                        context_result.range.end,
+                    )) {
                         self.output_symbol(searcher, &context_result)?;
                         self.has_match = true;
                     }
@@ -696,31 +787,40 @@ impl<'a, M: Matcher, W: WriteColor> AstSymbolSink<'a, M, W> {
     ) -> io::Result<()> {
         let symbol_start = context_result.range.start;
         let symbol_end = context_result.range.end;
-        
+
         // Extract the symbol content
         let symbol_content = &self.content[symbol_start..symbol_end];
-        
+
         // Apply AST-based syntax highlighting
         let highlighter = SyntaxHighlighter::new();
-        let highlighted_content = highlighter.highlight_with_ast(symbol_content, &self.ast_calculator);
-        
+        let highlighted_content = highlighter
+            .highlight_with_ast(symbol_content, &self.ast_calculator);
+
         // Add line numbers to the output with match highlighting
         let start_line = self.byte_to_line(symbol_start);
         let original_lines: Vec<&str> = symbol_content.lines().collect();
-        
+
         for (i, line) in highlighted_content.lines().enumerate() {
             let current_line = start_line + i;
             let original_line = original_lines.get(i).unwrap_or(&"");
-            
+
             // Check if this line contains any of our original matches
-            let has_match = self.original_matches.iter().any(|(match_start, _match_end)| {
-                let line_start_byte = symbol_start + original_lines.iter().take(i).map(|l| l.len() + 1).sum::<usize>();
-                let line_end_byte = line_start_byte + original_line.len();
-                *match_start >= line_start_byte && *match_start < line_end_byte
-            });
-            
+            let has_match = self.original_matches.iter().any(
+                |(match_start, _match_end)| {
+                    let line_start_byte = symbol_start
+                        + original_lines
+                            .iter()
+                            .take(i)
+                            .map(|l| l.len() + 1)
+                            .sum::<usize>();
+                    let line_end_byte = line_start_byte + original_line.len();
+                    *match_start >= line_start_byte
+                        && *match_start < line_end_byte
+                },
+            );
+
             if has_match {
-                println!("\x1b[1;32m{}\x1b[0m:{}", current_line, line);  // Green bold line number
+                println!("\x1b[1;32m{}\x1b[0m:{}", current_line, line); // Green bold line number
             } else {
                 println!("{}:{}", current_line, line);
             }
@@ -730,16 +830,15 @@ impl<'a, M: Matcher, W: WriteColor> AstSymbolSink<'a, M, W> {
     }
 
     fn byte_to_line(&self, byte_offset: usize) -> usize {
-        self.content.bytes().take(byte_offset).filter(|&b| b == b'\n').count() + 1
+        self.content.bytes().take(byte_offset).filter(|&b| b == b'\n').count()
+            + 1
     }
 
     fn stats(&self) -> Option<grep::printer::Stats> {
         // For now, return None - we could implement proper stats later
         None
     }
-
 }
-
 
 /// Legacy function for compatibility.
 fn search_path<M: Matcher, W: WriteColor>(

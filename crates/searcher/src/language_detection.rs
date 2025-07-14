@@ -7,13 +7,19 @@ and create appropriate AST calculators for that language.
 
 use std::path::Path;
 
-use outgrep_ast_core::{Language, tree_sitter::{LanguageExt, StrDoc}};
+use outgrep_ast_core::{
+    tree_sitter::{LanguageExt, StrDoc},
+    Language,
+};
 use outgrep_ast_language::SupportLang;
 
-use crate::ast_context::{AstContextCalculator, AstContextError, AstContextType, default_context_types};
+use crate::ast_context::{
+    default_context_types, AstContextCalculator, AstContextError,
+    AstContextType,
+};
 
 /// Detects the programming language from a file path and creates an AST context calculator.
-/// 
+///
 /// This function fails fast - if the language is not supported or AST parsing fails,
 /// it returns an error rather than falling back to line-based context.
 pub fn create_ast_calculator_for_file(
@@ -21,14 +27,15 @@ pub fn create_ast_calculator_for_file(
     source: &str,
     context_types: Option<Vec<AstContextType>>,
 ) -> Result<AstContextCalculatorWrapper, AstContextError> {
-    let lang = SupportLang::from_path(file_path)
-        .ok_or_else(|| AstContextError::UnsupportedLanguage(
-            format!("File extension not supported for AST parsing: {}", 
-                   file_path.to_string_lossy())
-        ))?;
+    let lang = SupportLang::from_path(file_path).ok_or_else(|| {
+        AstContextError::UnsupportedLanguage(format!(
+            "File extension not supported for AST parsing: {}",
+            file_path.to_string_lossy()
+        ))
+    })?;
 
     let context_types = context_types.unwrap_or_else(default_context_types);
-    
+
     // This will fail if AST parsing fails - no fallback
     AstContextCalculatorWrapper::new(lang, source, context_types)
 }
@@ -51,7 +58,7 @@ impl AstContextCalculatorWrapper {
             ($lang_impl:expr, $lang_name:expr) => {{
                 // Try to parse the source with ast-grep
                 let ast_grep = $lang_impl.ast_grep(source);
-                
+
                 // Check if parsing actually succeeded by trying to get the root
                 let root = ast_grep.root();
                 if root.range().start == 0 && root.range().end == 0 && !source.is_empty() {
@@ -60,7 +67,7 @@ impl AstContextCalculatorWrapper {
                         reason: "Tree-sitter parser returned empty tree for non-empty source".to_string(),
                     });
                 }
-                
+
                 Box::new(AstContextCalculator::new(ast_grep, context_types.clone())) as Box<dyn AstCalculator>
             }};
         }
@@ -68,74 +75,80 @@ impl AstContextCalculatorWrapper {
         let calculator: Box<dyn AstCalculator> = match lang {
             SupportLang::Rust => {
                 create_calculator!(outgrep_ast_language::Rust, "Rust")
-            },
+            }
             SupportLang::JavaScript => {
-                create_calculator!(outgrep_ast_language::JavaScript, "JavaScript")
-            },
+                create_calculator!(
+                    outgrep_ast_language::JavaScript,
+                    "JavaScript"
+                )
+            }
             SupportLang::TypeScript => {
-                create_calculator!(outgrep_ast_language::TypeScript, "TypeScript")
-            },
+                create_calculator!(
+                    outgrep_ast_language::TypeScript,
+                    "TypeScript"
+                )
+            }
             SupportLang::Python => {
                 create_calculator!(outgrep_ast_language::Python, "Python")
-            },
+            }
             SupportLang::Go => {
                 create_calculator!(outgrep_ast_language::Go, "Go")
-            },
+            }
             SupportLang::Java => {
                 create_calculator!(outgrep_ast_language::Java, "Java")
-            },
+            }
             SupportLang::C => {
                 create_calculator!(outgrep_ast_language::C, "C")
-            },
+            }
             SupportLang::Cpp => {
                 create_calculator!(outgrep_ast_language::Cpp, "C++")
-            },
+            }
             SupportLang::CSharp => {
                 create_calculator!(outgrep_ast_language::CSharp, "C#")
-            },
+            }
             SupportLang::Ruby => {
                 create_calculator!(outgrep_ast_language::Ruby, "Ruby")
-            },
+            }
             SupportLang::Php => {
                 create_calculator!(outgrep_ast_language::Php, "PHP")
-            },
+            }
             SupportLang::Swift => {
                 create_calculator!(outgrep_ast_language::Swift, "Swift")
-            },
+            }
             SupportLang::Kotlin => {
                 create_calculator!(outgrep_ast_language::Kotlin, "Kotlin")
-            },
+            }
             SupportLang::Scala => {
                 create_calculator!(outgrep_ast_language::Scala, "Scala")
-            },
+            }
             SupportLang::Haskell => {
                 create_calculator!(outgrep_ast_language::Haskell, "Haskell")
-            },
+            }
             SupportLang::Elixir => {
                 create_calculator!(outgrep_ast_language::Elixir, "Elixir")
-            },
+            }
             SupportLang::Lua => {
                 create_calculator!(outgrep_ast_language::Lua, "Lua")
-            },
+            }
             SupportLang::Bash => {
                 create_calculator!(outgrep_ast_language::Bash, "Bash")
-            },
+            }
             // For languages without complex scoping, we can still try basic parsing
             SupportLang::Html => {
                 create_calculator!(outgrep_ast_language::Html, "HTML")
-            },
+            }
             SupportLang::Css => {
                 create_calculator!(outgrep_ast_language::Css, "CSS")
-            },
+            }
             SupportLang::Json => {
                 create_calculator!(outgrep_ast_language::Json, "JSON")
-            },
+            }
             SupportLang::Yaml => {
                 create_calculator!(outgrep_ast_language::Yaml, "YAML")
-            },
+            }
             SupportLang::Tsx => {
                 create_calculator!(outgrep_ast_language::Tsx, "TSX")
-            },
+            }
         };
 
         Ok(Self::Calculator(calculator))
@@ -159,6 +172,9 @@ pub trait AstCalculator {
         &self,
         match_range: std::ops::Range<usize>,
     ) -> Result<crate::ast_context::AstContextResult, AstContextError>;
+
+    /// Get syntax highlighting information as (range, kind) pairs.
+    fn get_syntax_nodes(&self) -> Vec<(std::ops::Range<usize>, String)>;
 }
 
 impl<D> AstCalculator for AstContextCalculator<StrDoc<D>>
@@ -170,6 +186,21 @@ where
         match_range: std::ops::Range<usize>,
     ) -> Result<crate::ast_context::AstContextResult, AstContextError> {
         self.calculate_context(match_range)
+    }
+
+    fn get_syntax_nodes(&self) -> Vec<(std::ops::Range<usize>, String)> {
+        let root = self.get_root_node();
+        let mut nodes = Vec::new();
+
+        // Use ast-grep's DFS traversal to collect all leaf nodes
+        for node in root.dfs() {
+            // Only collect leaf nodes to avoid overlapping ranges
+            if node.children().count() == 0 {
+                nodes.push((node.range(), node.kind().to_string()));
+            }
+        }
+
+        nodes
     }
 }
 
@@ -192,10 +223,22 @@ mod tests {
 
     #[test]
     fn test_language_detection() {
-        assert_eq!(get_language_for_file(&PathBuf::from("test.rs")), Some(SupportLang::Rust));
-        assert_eq!(get_language_for_file(&PathBuf::from("test.js")), Some(SupportLang::JavaScript));
-        assert_eq!(get_language_for_file(&PathBuf::from("test.py")), Some(SupportLang::Python));
-        assert_eq!(get_language_for_file(&PathBuf::from("test.unknown")), None);
+        assert_eq!(
+            get_language_for_file(&PathBuf::from("test.rs")),
+            Some(SupportLang::Rust)
+        );
+        assert_eq!(
+            get_language_for_file(&PathBuf::from("test.js")),
+            Some(SupportLang::JavaScript)
+        );
+        assert_eq!(
+            get_language_for_file(&PathBuf::from("test.py")),
+            Some(SupportLang::Python)
+        );
+        assert_eq!(
+            get_language_for_file(&PathBuf::from("test.unknown")),
+            None
+        );
     }
 
     #[test]

@@ -697,7 +697,8 @@ impl HiArgs {
         printer: Printer<W>,
     ) -> anyhow::Result<SearchWorker<W>> {
         let mut builder = SearchWorkerBuilder::new();
-        let use_ast_context = matches!(self.context, ContextMode::EnclosingSymbol);
+        let use_ast_context =
+            matches!(self.context, ContextMode::EnclosingSymbol);
         builder
             .preprocessor(self.pre.clone())?
             .preprocessor_globs(self.pre_globs.clone())
@@ -735,7 +736,7 @@ impl HiArgs {
                 builder.after_context(after);
             }
             ContextMode::EnclosingSymbol => {
-                // For EnclosingSymbol mode, we'll need to implement 
+                // For EnclosingSymbol mode, we'll need to implement
                 // context expansion based on AST parsing later.
                 // For now, treat it as passthrough until the searcher
                 // can handle enclosing symbol context.

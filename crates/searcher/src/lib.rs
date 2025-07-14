@@ -85,12 +85,12 @@ searches stdin.
 
 pub use crate::{
     ast_context::{
-        AstContextCalculator, AstContextError, AstContextResult, AstContextType,
-        default_context_types,
+        default_context_types, AstContextCalculator, AstContextError,
+        AstContextResult, AstContextType,
     },
     language_detection::{
-        create_ast_calculator_for_file, is_supported_file, get_language_for_file,
-        AstContextCalculatorWrapper, AstCalculator,
+        create_ast_calculator_for_file, get_language_for_file,
+        is_supported_file, AstCalculator, AstContextCalculatorWrapper,
     },
     lines::{LineIter, LineStep},
     searcher::{

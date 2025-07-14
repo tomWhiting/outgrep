@@ -465,7 +465,9 @@ impl ContextMode {
         match *self {
             ContextMode::Passthru => unreachable!("context mode is passthru"),
             ContextMode::Limited(ref limited) => limited.get(),
-            ContextMode::EnclosingSymbol => unreachable!("context mode is enclosing symbol"),
+            ContextMode::EnclosingSymbol => {
+                unreachable!("context mode is enclosing symbol")
+            }
         }
     }
 }
