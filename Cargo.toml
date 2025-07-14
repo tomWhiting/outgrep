@@ -29,7 +29,7 @@ rust-version = "1.72"
 [[bin]]
 bench = false
 path = "crates/core/main.rs"
-name = "rg"
+name = "og"
 
 [[test]]
 name = "integration"

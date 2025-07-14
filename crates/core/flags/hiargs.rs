@@ -94,6 +94,7 @@ pub(crate) struct HiArgs {
     regex_size_limit: Option<usize>,
     replace: Option<BString>,
     search_zip: bool,
+    semantic: bool,
     sort: Option<SortMode>,
     stats: Option<grep::printer::Stats>,
     stop_on_nonmatch: bool,
@@ -312,6 +313,7 @@ impl HiArgs {
             regex_size_limit: low.regex_size_limit,
             replace: low.replace,
             search_zip: low.search_zip,
+            semantic: low.semantic,
             sort: low.sort,
             stats,
             stop_on_nonmatch: low.stop_on_nonmatch,
@@ -708,7 +710,9 @@ impl HiArgs {
             .binary_detection_explicit(self.binary.explicit.clone())
             .binary_detection_implicit(self.binary.implicit.clone())
             .ast_context(use_ast_context)
-            .syntax_highlighting(self.syntax_highlighting);
+            .syntax_highlighting(self.syntax_highlighting)
+            .semantic_search(self.semantic)
+            .pattern(self.first_pattern().map(|s| s.to_string()));
         Ok(builder.build(matcher, searcher, printer))
     }
 
@@ -761,6 +765,16 @@ impl HiArgs {
     /// Return whether syntax highlighting is enabled.
     pub(crate) fn syntax_highlighting(&self) -> bool {
         self.syntax_highlighting
+    }
+
+    /// Return whether semantic search is enabled.
+    pub(crate) fn semantic(&self) -> bool {
+        self.semantic
+    }
+
+    /// Return the first search pattern, if any.
+    pub(crate) fn first_pattern(&self) -> Option<&str> {
+        self.patterns.patterns.first().map(|s| s.as_str())
     }
 
     /// Given an iterator of haystacks, sort them if necessary.

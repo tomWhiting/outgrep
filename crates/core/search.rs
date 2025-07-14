@@ -24,6 +24,7 @@ struct Config {
     binary_explicit: grep::searcher::BinaryDetection,
     use_ast_context: bool,
     syntax_highlighting: bool,
+    semantic_search: bool,
 }
 
 impl Default for Config {
@@ -36,6 +37,7 @@ impl Default for Config {
             binary_explicit: grep::searcher::BinaryDetection::none(),
             use_ast_context: false,
             syntax_highlighting: true, // Default to true
+            semantic_search: false,
         }
     }
 }
@@ -46,6 +48,7 @@ pub(crate) struct SearchWorkerBuilder {
     config: Config,
     command_builder: grep::cli::CommandReaderBuilder,
     decomp_builder: grep::cli::DecompressionReaderBuilder,
+    pattern: Option<String>,
 }
 
 impl Default for SearchWorkerBuilder {
@@ -67,6 +70,7 @@ impl SearchWorkerBuilder {
             config: Config::default(),
             command_builder: cmd_builder,
             decomp_builder,
+            pattern: None,
         }
     }
 
@@ -88,6 +92,7 @@ impl SearchWorkerBuilder {
             matcher,
             searcher,
             printer,
+            pattern: self.pattern.clone(),
         }
     }
 
@@ -192,6 +197,26 @@ impl SearchWorkerBuilder {
         self.config.syntax_highlighting = yes;
         self
     }
+
+    /// Set whether to enable semantic search using vector embeddings.
+    ///
+    /// By default, semantic search is disabled.
+    pub(crate) fn semantic_search(
+        &mut self,
+        yes: bool,
+    ) -> &mut SearchWorkerBuilder {
+        self.config.semantic_search = yes;
+        self
+    }
+
+    /// Set the search pattern for semantic search operations.
+    pub(crate) fn pattern(
+        &mut self,
+        pattern: Option<String>,
+    ) -> &mut SearchWorkerBuilder {
+        self.pattern = pattern;
+        self
+    }
 }
 
 /// The result of executing a search.
@@ -267,6 +292,7 @@ pub(crate) struct SearchWorker<W> {
     matcher: PatternMatcher,
     searcher: grep::searcher::Searcher,
     printer: Printer<W>,
+    pattern: Option<String>,
 }
 
 impl<W: WriteColor> SearchWorker<W> {
@@ -373,6 +399,8 @@ impl<W: WriteColor> SearchWorker<W> {
         let (searcher, printer) = (&mut self.searcher, &mut self.printer);
         let use_ast_context = self.config.use_ast_context;
         let syntax_highlighting = self.config.syntax_highlighting;
+        let semantic_search = self.config.semantic_search;
+        let pattern = self.pattern.as_deref();
         match self.matcher {
             RustRegex(ref m) => search_path_with_context(
                 m,
@@ -381,6 +409,8 @@ impl<W: WriteColor> SearchWorker<W> {
                 path,
                 use_ast_context,
                 syntax_highlighting,
+                semantic_search,
+                pattern,
             ),
             #[cfg(feature = "pcre2")]
             PCRE2(ref m) => search_path_with_context(
@@ -390,6 +420,8 @@ impl<W: WriteColor> SearchWorker<W> {
                 path,
                 use_ast_context,
                 syntax_highlighting,
+                semantic_search,
+                pattern,
             ),
         }
     }
@@ -420,7 +452,7 @@ impl<W: WriteColor> SearchWorker<W> {
 }
 
 /// Search the contents of the given file path using the given matcher,
-/// searcher and printer, with optional AST context mode.
+/// searcher and printer, with optional AST context mode and semantic search.
 fn search_path_with_context<M: Matcher, W: WriteColor>(
     matcher: M,
     searcher: &mut grep::searcher::Searcher,
@@ -428,8 +460,12 @@ fn search_path_with_context<M: Matcher, W: WriteColor>(
     path: &Path,
     use_ast_context: bool,
     syntax_highlighting: bool,
+    semantic_search: bool,
+    pattern: Option<&str>,
 ) -> io::Result<SearchResult> {
-    if use_ast_context {
+    if semantic_search {
+        search_path_semantic(matcher, searcher, printer, path, pattern)
+    } else if use_ast_context {
         search_path_ast_context(matcher, searcher, printer, path, syntax_highlighting)
     } else {
         search_path_standard(matcher, searcher, printer, path)
@@ -469,6 +505,118 @@ fn search_path_standard<M: Matcher, W: WriteColor>(
             })
         }
     }
+}
+
+/// Search using semantic vector embeddings.
+fn search_path_semantic<M: Matcher, W: WriteColor>(
+    _matcher: M,
+    _searcher: &mut grep::searcher::Searcher,
+    _printer: &mut Printer<W>,
+    path: &Path,
+    pattern: Option<&str>,
+) -> io::Result<SearchResult> {
+    use grep::searcher::{
+        SemanticConfig, SemanticSearcher,
+        is_supported_file, create_ast_calculator_for_file, default_context_types,
+    };
+    use grep::searcher::semantic::{generate_embedding, build_index};
+
+    // Check if this file type supports semantic search
+    if !is_supported_file(path) {
+        return Ok(SearchResult { has_match: false, stats: None });
+    }
+    
+    // Read the file content
+    let content = std::fs::read_to_string(path).map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("Failed to read file for semantic search: {}", e),
+        )
+    })?;
+
+    // Create AST calculator to extract functions
+    let ast_calculator = create_ast_calculator_for_file(
+        path,
+        &content,
+        Some(default_context_types()),
+    ).map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("AST parsing failed: {}", e),
+        )
+    })?;
+
+    // Extract individual functions using AST
+    let config = SemanticConfig::default();
+    let mut embeddings = Vec::new();
+    
+    // Extract all symbols by scanning through the file content
+    let mut symbols = Vec::new();
+    let mut unique_symbols = std::collections::HashSet::new();
+    
+    // Scan through the file content to find all symbols
+    // We'll sample positions throughout the file to discover symbols
+    let sample_positions: Vec<usize> = (0..content.len())
+        .step_by(50) // Sample every 50 bytes
+        .collect();
+    
+    for pos in sample_positions {
+        if let Ok(context_result) = ast_calculator.calculate_context(pos..pos+1) {
+            let symbol_start = context_result.range.start;
+            let symbol_end = context_result.range.end;
+            let symbol_key = (symbol_start, symbol_end);
+            
+            // Only add unique symbols (avoid duplicates)
+            if unique_symbols.insert(symbol_key) {
+                symbols.push(context_result);
+            }
+        }
+    }
+    
+    // Extracted symbols for semantic search
+    
+    if symbols.is_empty() {
+        // Fallback: create embedding for entire file if no symbols found
+        let embedding = generate_embedding(&content, &config);
+        embeddings.push((embedding, 0..content.len(), content.clone()));
+    } else {
+        // Create embeddings for each individual symbol
+        for symbol in symbols {
+            let byte_range = symbol.range.clone();
+            
+            // Extract symbol content from file using the range
+            let symbol_content = &content[byte_range.clone()];
+            let embedding = generate_embedding(symbol_content, &config);
+            embeddings.push((embedding, byte_range, symbol_content.to_string()));
+        }
+    }
+
+    // Build semantic index
+    let index = build_index(embeddings);
+    
+    // Create searcher and perform search
+    let mut semantic_searcher = SemanticSearcher::new(config);
+    semantic_searcher.set_index(index);
+    
+    // Use the actual search pattern
+    let query = pattern.unwrap_or("search");
+    let matches = semantic_searcher.search(&query);
+    
+    // For now, just return whether we found semantic matches
+    let has_match = !matches.is_empty();
+    
+    if has_match {
+        for semantic_match in matches.iter() {
+            println!("{}:{}-{}: {:.1}% similarity", 
+                     path.display(), 
+                     semantic_match.byte_range.start, 
+                     semantic_match.byte_range.end,
+                     semantic_match.similarity * 100.0);
+            println!("{}", semantic_match.content);
+        }
+    }
+
+    Ok(SearchResult { has_match, stats: None })
 }
 
 /// Search using AST-based enclosing symbol context.

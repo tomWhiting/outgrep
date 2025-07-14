@@ -97,6 +97,10 @@ pub use crate::{
         BinaryDetection, ConfigError, Encoding, MmapChoice, Searcher,
         SearcherBuilder,
     },
+    semantic::{
+        Embedding, SemanticConfig, SemanticIndex, SemanticMatch,
+        SemanticSearcher,
+    },
     sink::{
         sinks, Sink, SinkContext, SinkContextKind, SinkError, SinkFinish,
         SinkMatch,
@@ -111,6 +115,8 @@ mod language_detection;
 mod line_buffer;
 mod lines;
 mod searcher;
+/// Semantic search using vector embeddings.
+pub mod semantic;
 mod sink;
 #[cfg(test)]
 mod testutil;

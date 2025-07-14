@@ -23,6 +23,12 @@ memchr = "2.6.3"
 memmap = { package = "memmap2", version = "0.9.0" }
 thiserror = "2.0.0"
 
+# Semantic search
+instant-distance = "0.6.1"
+ort = { version = "1.16.3", features = ["load-dynamic"] }
+tokenizers = "0.19.1"
+ndarray = "0.15"
+
 # AST functionality
 outgrep-ast-core = { path = "../ast-core" }
 outgrep-ast-language = { path = "../ast-language" }

@@ -132,6 +132,7 @@ pub(super) const FLAGS: &[&dyn Flag] = &[
     &Stats,
     &StopOnNonmatch,
     &NoSyntaxHighlight,
+    &Semantic,
     &Text,
     &Threads,
     &Trace,
@@ -6639,6 +6640,54 @@ fn test_no_syntax_highlight() {
 
     let args = parse_low_raw(["--no-syntax-highlight"]).unwrap();
     assert_eq!(false, args.syntax_highlighting); // Disabled with flag
+}
+
+/// --semantic
+#[derive(Debug)]
+struct Semantic;
+
+impl Flag for Semantic {
+    fn is_switch(&self) -> bool {
+        true
+    }
+    fn name_long(&self) -> &'static str {
+        "semantic"
+    }
+    fn doc_category(&self) -> Category {
+        Category::Search
+    }
+    fn doc_short(&self) -> &'static str {
+        "Enable semantic code search using vector embeddings."
+    }
+    fn doc_long(&self) -> &'static str {
+        r"
+Enable semantic code search using vector embeddings. This allows searching
+for code with similar meaning rather than just exact text matches.
+.sp
+When enabled, outgrep will generate vector embeddings for code functions
+and symbols, and search for semantically similar content based on the query.
+This is particularly useful for finding code patterns, similar functions,
+or conceptually related code blocks.
+.sp
+Note: This feature requires additional processing time for embedding generation
+and is currently experimental.
+"
+    }
+
+    fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+        args.semantic = v.unwrap_switch();
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn test_semantic() {
+    let args = parse_low_raw(None::<&str>).unwrap();
+    assert_eq!(false, args.semantic);
+
+    let args = parse_low_raw(["--semantic"]).unwrap();
+    assert_eq!(true, args.semantic);
 }
 
 /// -a/--text
