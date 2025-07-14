@@ -788,6 +788,9 @@ impl<'a, M: Matcher, W: WriteColor> AstSymbolSink<'a, M, W> {
         let symbol_start = context_result.range.start;
         let symbol_end = context_result.range.end;
 
+        // Print file path header
+        println!("\x1b[36m{}\x1b[0m", self.path.display()); // Cyan file path
+
         // Extract the symbol content
         let symbol_content = &self.content[symbol_start..symbol_end];
 
