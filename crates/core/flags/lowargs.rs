@@ -362,6 +362,8 @@ pub(crate) enum ContextMode {
     Passthru,
     /// Only show a certain number of lines before and after each match.
     Limited(ContextModeLimited),
+    /// Show the entire enclosing symbol (function, class, etc.) around each match.
+    EnclosingSymbol,
 }
 
 impl Default for ContextMode {
@@ -389,6 +391,14 @@ impl ContextMode {
                 ref mut before,
                 ..
             }) => *before = Some(lines),
+            ContextMode::EnclosingSymbol => {
+                // Convert to Limited mode when setting specific before context
+                *self = ContextMode::Limited(ContextModeLimited {
+                    before: Some(lines),
+                    after: None,
+                    both: None,
+                });
+            }
         }
     }
 
@@ -409,6 +419,14 @@ impl ContextMode {
             ContextMode::Limited(ContextModeLimited {
                 ref mut after, ..
             }) => *after = Some(lines),
+            ContextMode::EnclosingSymbol => {
+                // Convert to Limited mode when setting specific after context
+                *self = ContextMode::Limited(ContextModeLimited {
+                    before: None,
+                    after: Some(lines),
+                    both: None,
+                });
+            }
         }
     }
 
@@ -429,6 +447,14 @@ impl ContextMode {
             ContextMode::Limited(ContextModeLimited {
                 ref mut both, ..
             }) => *both = Some(lines),
+            ContextMode::EnclosingSymbol => {
+                // Convert to Limited mode when setting specific both context
+                *self = ContextMode::Limited(ContextModeLimited {
+                    before: None,
+                    after: None,
+                    both: Some(lines),
+                });
+            }
         }
     }
 
@@ -439,6 +465,7 @@ impl ContextMode {
         match *self {
             ContextMode::Passthru => unreachable!("context mode is passthru"),
             ContextMode::Limited(ref limited) => limited.get(),
+            ContextMode::EnclosingSymbol => unreachable!("context mode is enclosing symbol"),
         }
     }
 }

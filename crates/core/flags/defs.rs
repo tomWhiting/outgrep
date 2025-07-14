@@ -57,6 +57,7 @@ pub(super) const FLAGS: &[&dyn Flag] = &[
     &Column,
     &Context,
     &ContextSeparator,
+    &EnclosingSymbol,
     &Count,
     &CountMatches,
     &Crlf,
@@ -1101,6 +1102,57 @@ fn test_context() {
     mode.set_both(5);
     assert_eq!(mode, args.context);
     assert_eq!((2, 1), args.context.get_limited());
+}
+
+/// --enclosing-symbol
+#[derive(Debug)]
+struct EnclosingSymbol;
+
+impl Flag for EnclosingSymbol {
+    fn is_switch(&self) -> bool {
+        true
+    }
+    fn name_long(&self) -> &'static str {
+        "enclosing-symbol"
+    }
+    fn doc_category(&self) -> Category {
+        Category::Output
+    }
+    fn doc_short(&self) -> &'static str {
+        r"Show entire enclosing symbol around each match."
+    }
+    fn doc_long(&self) -> &'static str {
+        r"
+Show the entire enclosing symbol (function, class, method, etc.) around each
+match instead of a fixed number of context lines. Uses AST parsing to identify
+symbol boundaries for supported languages. Falls back to showing just the match
+line for unsupported file types.
+.sp
+This overrides any \flag{before-context}, \flag{after-context}, and \flag{context}
+flags.
+"
+    }
+    fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+        assert!(v.unwrap_switch(), "--enclosing-symbol has no negation");
+        args.context = ContextMode::EnclosingSymbol;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn test_enclosing_symbol() {
+    let args = parse_low_raw(None::<&str>).unwrap();
+    assert_eq!(ContextMode::default(), args.context);
+    let args = parse_low_raw(["--enclosing-symbol"]).unwrap();
+    assert_eq!(ContextMode::EnclosingSymbol, args.context);
+    // Test that enclosing-symbol overrides other context flags
+    let args = parse_low_raw(["-C5", "--enclosing-symbol"]).unwrap();
+    assert_eq!(ContextMode::EnclosingSymbol, args.context);
+    let args = parse_low_raw(["--enclosing-symbol", "-C5"]).unwrap();
+    let mut mode = ContextMode::default();
+    mode.set_both(5);
+    assert_eq!(mode, args.context);
 }
 
 /// --context-separator

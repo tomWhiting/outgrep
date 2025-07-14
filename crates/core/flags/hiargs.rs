@@ -187,6 +187,9 @@ impl HiArgs {
                     } else {
                         None
                     }
+                } else if let ContextMode::EnclosingSymbol = low.context {
+                    // EnclosingSymbol mode will show context, so use separator
+                    low.context_separator.clone().into_bytes()
                 } else {
                     None
                 }
@@ -723,6 +726,13 @@ impl HiArgs {
                 let (before, after) = limited.get();
                 builder.before_context(before);
                 builder.after_context(after);
+            }
+            ContextMode::EnclosingSymbol => {
+                // For EnclosingSymbol mode, we'll need to implement 
+                // context expansion based on AST parsing later.
+                // For now, treat it as passthrough until the searcher
+                // can handle enclosing symbol context.
+                builder.passthru(true);
             }
         }
         match self.encoding {

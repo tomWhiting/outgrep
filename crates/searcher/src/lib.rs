@@ -84,6 +84,14 @@ searches stdin.
 #![deny(missing_docs)]
 
 pub use crate::{
+    ast_context::{
+        AstContextCalculator, AstContextError, AstContextResult, AstContextType,
+        default_context_types,
+    },
+    language_detection::{
+        create_ast_calculator_for_file, is_supported_file, get_language_for_file,
+        AstContextCalculatorWrapper,
+    },
     lines::{LineIter, LineStep},
     searcher::{
         BinaryDetection, ConfigError, Encoding, MmapChoice, Searcher,
@@ -98,6 +106,8 @@ pub use crate::{
 #[macro_use]
 mod macros;
 
+mod ast_context;
+mod language_detection;
 mod line_buffer;
 mod lines;
 mod searcher;

@@ -1,0 +1,21 @@
+[package]
+name = "outgrep-ast-core"
+description = "AST-based search core for outgrep - forked from ast-grep-core"
+keywords = ["ast", "pattern", "search", "ripgrep", "tree-sitter"]
+categories = ["command-line-utilities", "development-tools", "parsing"]
+version = "0.1.0"
+edition = "2021"
+license = "Unlicense OR MIT"
+authors = ["Tom <tom@example.com>"]
+
+[dependencies]
+bit-set = "0.8.0"
+regex = "1.10.4"
+thiserror = "2.0.0"
+tree-sitter = { version = "0.25.4", optional = true }
+
+[features]
+default = ["tree-sitter"]
+
+[dev-dependencies]
+tree-sitter-typescript = "0.23.2"

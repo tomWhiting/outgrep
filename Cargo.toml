@@ -46,6 +46,8 @@ members = [
   "crates/regex",
   "crates/searcher",
   "crates/ignore",
+  "crates/ast-core",
+  "crates/ast-language",
 ]
 
 [dependencies]
@@ -58,6 +60,10 @@ log = "0.4.5"
 serde_json = "1.0.23"
 termcolor = "1.1.0"
 textwrap = { version = "0.16.0", default-features = false }
+
+# AST functionality - core feature
+outgrep-ast-core = { path = "crates/ast-core" }
+outgrep-ast-language = { path = "crates/ast-language" }
 
 [target.'cfg(all(target_env = "musl", target_pointer_width = "64"))'.dependencies.jemallocator]
 version = "0.5.0"
