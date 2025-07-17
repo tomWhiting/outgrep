@@ -36,6 +36,7 @@ pub(crate) use crate::flags::{
     },
     hiargs::HiArgs,
     lowargs::{GenerateMode, Mode, SearchMode, SpecialMode},
+    management::ConfigManager,
     parse::{parse, ParseResult},
 };
 
@@ -43,8 +44,10 @@ mod complete;
 mod config;
 mod defs;
 mod doc;
+mod hierarchy;
 mod hiargs;
 mod lowargs;
+mod management;
 mod parse;
 
 /// A trait that encapsulates the definition of an optional flag for ripgrep.
@@ -208,6 +211,9 @@ enum Category {
     /// Flags related to logging behavior such as emitting non-fatal error
     /// messages or printing search statistics.
     Logging,
+    /// Flags related to configuration management, such as initializing
+    /// and opening configuration files.
+    Config,
     /// Other behaviors not related to ripgrep's core functionality. For
     /// example, printing the file type globbing rules, or printing the list
     /// of files ripgrep would search without actually searching them.
@@ -227,6 +233,7 @@ impl Category {
             Category::Output => "output",
             Category::OutputModes => "output-modes",
             Category::Logging => "logging",
+            Category::Config => "config",
             Category::OtherBehaviors => "other-behaviors",
         }
     }

@@ -1,10 +1,11 @@
-use super::types::{Embedding, EmbeddingPoint, SemanticIndex, SemanticMatch};
+use super::types::{Embedding, EmbeddingPoint, SemanticIndex, SemanticMatch, SemanticConfig};
 use instant_distance::{Builder, Search};
 use std::ops::Range;
 
 /// Build index from embeddings and their associated data
 pub fn build_index(
     embeddings: Vec<(Embedding, Range<usize>, String)>,
+    config: &SemanticConfig,
 ) -> SemanticIndex {
     let mut embedding_vectors = Vec::new();
     let mut metadata = Vec::new();
@@ -14,15 +15,16 @@ pub fn build_index(
     for (idx, (embedding, range, content)) in
         embeddings.into_iter().enumerate()
     {
-        // Ensure embedding is exactly 384 dimensions
+        // Ensure embedding matches configured dimensions
         let mut vector = embedding.vector.clone();
-        if vector.len() != 384 {
+        if vector.len() != config.embedding_dimensions {
             eprintln!(
-                "DEBUG: Resizing vector from {} to 384 dimensions",
-                vector.len()
+                "DEBUG: Resizing vector from {} to {} dimensions",
+                vector.len(),
+                config.embedding_dimensions
             );
         }
-        vector.resize(384, 0.0);
+        vector.resize(config.embedding_dimensions, 0.0);
 
         // Add point and its index value
         points.push(EmbeddingPoint(vector));

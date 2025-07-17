@@ -3,6 +3,12 @@ This module provides routines for reading ripgrep config "rc" files.
 
 The primary output of these routines is a sequence of arguments, where each
 argument corresponds precisely to one shell argument.
+
+This module supports hierarchical configuration loading with the following precedence:
+1. CLI arguments (highest priority)
+2. Local/project configuration files
+3. Global configuration files
+4. Legacy RIPGREP_CONFIG_PATH (lowest priority)
 */
 
 use std::{
@@ -12,8 +18,63 @@ use std::{
 
 use bstr::{io::BufReadExt, ByteSlice};
 
+use crate::flags::hierarchy::ConfigHierarchy;
+
 /// Return a sequence of arguments derived from ripgrep rc configuration files.
+/// 
+/// This function implements hierarchical configuration loading:
+/// 1. Global config files (lowest priority)
+/// 2. Local/project config files (medium priority)  
+/// 3. Legacy RIPGREP_CONFIG_PATH (for backward compatibility)
+///
+/// The returned arguments should be merged with CLI arguments, with CLI taking
+/// the highest priority.
 pub fn args() -> Vec<OsString> {
+    let mut all_args = Vec::new();
+
+    // Load hierarchical configuration (global + local)
+    match ConfigHierarchy::load() {
+        Ok(hierarchy) => {
+            // Add global config args first
+            if let Some(ref global) = hierarchy.global_config {
+                log::debug!(
+                    "{}: arguments loaded from global config: {:?}",
+                    global.path.display(),
+                    global.args
+                );
+                all_args.extend(global.args.clone());
+            }
+
+            // Add local config args second (higher priority)
+            if let Some(ref local) = hierarchy.local_config {
+                log::debug!(
+                    "{}: arguments loaded from local config: {:?}",
+                    local.path.display(),
+                    local.args
+                );
+                all_args.extend(local.args.clone());
+            }
+        }
+        Err(err) => {
+            log::debug!("Failed to load hierarchical config: {}", err);
+        }
+    }
+
+    // For backward compatibility, also check RIPGREP_CONFIG_PATH
+    // This has the lowest priority, so it goes first
+    let legacy_args = load_legacy_config();
+    if !legacy_args.is_empty() {
+        // Insert legacy args at the beginning (lowest priority)
+        let mut combined_args = legacy_args;
+        combined_args.extend(all_args);
+        all_args = combined_args;
+    }
+
+    all_args
+}
+
+/// Load configuration from legacy RIPGREP_CONFIG_PATH for backward compatibility
+fn load_legacy_config() -> Vec<OsString> {
     let config_path = match std::env::var_os("RIPGREP_CONFIG_PATH") {
         None => return vec![],
         Some(config_path) => {
@@ -39,7 +100,7 @@ pub fn args() -> Vec<OsString> {
         }
     }
     log::debug!(
-        "{}: arguments loaded from config file: {:?}",
+        "{}: arguments loaded from legacy config file: {:?}",
         config_path.display(),
         args
     );

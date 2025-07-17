@@ -133,6 +133,11 @@ pub(super) const FLAGS: &[&dyn Flag] = &[
     &StopOnNonmatch,
     &NoSyntaxHighlight,
     &Semantic,
+    &SemanticModelPath,
+    &SemanticModel,
+    &SemanticDimensions,
+    &SemanticSimilarityThreshold,
+    &SemanticMaxResults,
     &Text,
     &Threads,
     &Trace,
@@ -148,6 +153,12 @@ pub(super) const FLAGS: &[&dyn Flag] = &[
     &WithFilename,
     &WithFilenameNo,
     &WordRegexp,
+    // Config management flags
+    &ConfigStatus,
+    &InitGlobalConfig,
+    &InitLocalConfig,
+    &OpenGlobalConfig,
+    &OpenLocalConfig,
     // DEPRECATED (make them show up last in their respective categories)
     &AutoHybridRegex,
     &NoPcre2Unicode,
@@ -6690,6 +6701,220 @@ fn test_semantic() {
     assert_eq!(true, args.semantic);
 }
 
+/// --semantic-model-path
+#[derive(Debug)]
+struct SemanticModelPath;
+
+impl Flag for SemanticModelPath {
+    fn is_switch(&self) -> bool {
+        false
+    }
+    fn name_long(&self) -> &'static str {
+        "semantic-model-path"
+    }
+    fn doc_category(&self) -> Category {
+        Category::Search
+    }
+    fn doc_short(&self) -> &'static str {
+        "Directory path where semantic embedding models are stored."
+    }
+    fn doc_long(&self) -> &'static str {
+        r"
+Specify the directory path where semantic embedding models are stored.
+This directory should contain the model.onnx and tokenizer.json files
+required for semantic code search.
+.sp
+By default, models are automatically downloaded to '~/.cache/outgrep/models'.
+Use this flag to specify a different location such as a custom model cache
+directory.
+.sp
+Example: --semantic-model-path ~/.cache/outgrep/models
+"
+    }
+
+    fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+        args.semantic_model_path = Some(PathBuf::from(v.unwrap_value()));
+        Ok(())
+    }
+}
+
+/// --semantic-model
+#[derive(Debug)]
+struct SemanticModel;
+
+impl Flag for SemanticModel {
+    fn is_switch(&self) -> bool {
+        false
+    }
+    fn name_long(&self) -> &'static str {
+        "semantic-model"
+    }
+    fn doc_category(&self) -> Category {
+        Category::Search
+    }
+    fn doc_short(&self) -> &'static str {
+        "Specify which embedding model to use for semantic search."
+    }
+    fn doc_long(&self) -> &'static str {
+        r"
+Specify which embedding model to use for semantic code search.
+The model name should correspond to a supported embedding model.
+.sp
+Models are auto-downloaded from the model registry. See the registry for
+current available models and their specifications. Common models include
+compact 384-dimension models for speed and larger 768-dimension models
+for better quality.
+.sp
+The model files (model.onnx and tokenizer.json) should be available
+in the model storage directory for the specified model.
+.sp
+Example: --semantic-model all-mpnet-base-v2
+"
+    }
+
+    fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+        args.semantic_model = Some(convert::string(v.unwrap_value())?);
+        Ok(())
+    }
+}
+
+/// --semantic-dimensions
+#[derive(Debug)]
+struct SemanticDimensions;
+
+impl Flag for SemanticDimensions {
+    fn is_switch(&self) -> bool {
+        false
+    }
+    fn name_long(&self) -> &'static str {
+        "semantic-dimensions"
+    }
+    fn doc_category(&self) -> Category {
+        Category::Search
+    }
+    fn doc_short(&self) -> &'static str {
+        "Number of dimensions for semantic embedding vectors."
+    }
+    fn doc_long(&self) -> &'static str {
+        r"
+Specify the number of dimensions for semantic embedding vectors.
+This must match the dimensions of the embedding model being used.
+.sp
+Common dimension sizes are 384 (compact models), 768 (balanced models),
+and 1024 (high-quality models).
+.sp
+If not specified, defaults to the dimension size of the selected model. The dimension size
+affects memory usage and search performance.
+.sp
+Example: --semantic-dimensions 768
+"
+    }
+
+    fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+        let dims = convert::str(&v.unwrap_value())?.parse::<usize>()
+            .context("semantic dimensions must be a positive integer")?;
+        args.semantic_dimensions = Some(dims);
+        Ok(())
+    }
+}
+
+/// --semantic-similarity-threshold
+#[derive(Debug)]
+struct SemanticSimilarityThreshold;
+
+impl Flag for SemanticSimilarityThreshold {
+    fn is_switch(&self) -> bool {
+        false
+    }
+
+    fn name_long(&self) -> &'static str {
+        "semantic-similarity-threshold"
+    }
+
+    fn doc_category(&self) -> Category {
+        Category::Search
+    }
+
+    fn doc_short(&self) -> &'static str {
+        "Minimum similarity score for semantic search results."
+    }
+
+    fn doc_long(&self) -> &'static str {
+        r"
+Specify the minimum similarity score (between 0.0 and 1.0) for including
+results in semantic search output. Results with similarity scores below
+this threshold will be filtered out.
+.sp
+A higher threshold means more selective results with stronger semantic
+similarity, while a lower threshold includes more loosely related matches.
+.sp
+Default: 0.2 (20% similarity)
+.sp
+Example: --semantic-similarity-threshold 0.5
+"
+    }
+
+    fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+        let threshold = convert::str(&v.unwrap_value())?.parse::<f32>()
+            .context("semantic similarity threshold must be a number between 0.0 and 1.0")?;
+        
+        if threshold < 0.0 || threshold > 1.0 {
+            return Err(anyhow::anyhow!("semantic similarity threshold must be between 0.0 and 1.0"));
+        }
+        
+        args.semantic_similarity_threshold = Some(threshold);
+        Ok(())
+    }
+}
+
+/// --semantic-max-results
+#[derive(Debug)]
+struct SemanticMaxResults;
+
+impl Flag for SemanticMaxResults {
+    fn is_switch(&self) -> bool {
+        false
+    }
+
+    fn name_long(&self) -> &'static str {
+        "semantic-max-results"
+    }
+
+    fn doc_category(&self) -> Category {
+        Category::Search
+    }
+
+    fn doc_short(&self) -> &'static str {
+        "Maximum number of semantic search results to return."
+    }
+
+    fn doc_long(&self) -> &'static str {
+        r"
+Specify the maximum number of semantic search results to return.
+This limits the output to the top N most similar matches.
+.sp
+Lowering this value can improve performance and reduce noise in results,
+while increasing it provides more comprehensive coverage of similar content.
+.sp
+Default: 10 results
+.sp
+Example: --semantic-max-results 20
+"
+    }
+
+    fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+        let max_results = convert::str(&v.unwrap_value())?.parse::<usize>()
+            .context("semantic max results must be a positive integer")?;
+        
+        if max_results == 0 {
+            return Err(anyhow::anyhow!("semantic max results must be greater than 0"));
+        }
+        
+        args.semantic_max_results = Some(max_results);
+        Ok(())
+    }
+}
+
 /// -a/--text
 #[derive(Debug)]
 struct Text;
@@ -7630,6 +7855,190 @@ fn test_word_regexp() {
 
     let args = parse_low_raw(["-w", "-x"]).unwrap();
     assert_eq!(Some(BoundaryMode::Line), args.boundary);
+}
+
+/// --config-status
+#[derive(Debug)]
+struct ConfigStatus;
+
+impl Flag for ConfigStatus {
+    fn is_switch(&self) -> bool {
+        true
+    }
+    fn name_long(&self) -> &'static str {
+        "config-status"
+    }
+    fn doc_category(&self) -> Category {
+        Category::Config
+    }
+    fn doc_short(&self) -> &'static str {
+        "Show configuration file status."
+    }
+    fn doc_long(&self) -> &'static str {
+        r"
+Show the current configuration file status, including which global and local
+configuration files are loaded and their locations. This also shows the
+precedence order of configuration sources.
+"
+    }
+
+    fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+        assert!(v.unwrap_switch());
+        args.special = Some(SpecialMode::ConfigStatus);
+        Ok(())
+    }
+}
+
+/// --init-global-config
+#[derive(Debug)]
+struct InitGlobalConfig;
+
+impl Flag for InitGlobalConfig {
+    fn is_switch(&self) -> bool {
+        true
+    }
+    fn name_long(&self) -> &'static str {
+        "init-global-config"
+    }
+    fn doc_category(&self) -> Category {
+        Category::Config
+    }
+    fn doc_short(&self) -> &'static str {
+        "Create initial global config file."
+    }
+    fn doc_long(&self) -> &'static str {
+        r"
+Creates an initial global configuration file with example settings and
+documentation. The file is created in the standard configuration directory
+for your platform:
+.sp
+\fBLinux/Unix:\fP \fB$XDG_CONFIG_HOME/outgrep/config\fP or \fB$HOME/.config/outgrep/config\fP
+.sp
+\fBmacOS:\fP \fB$HOME/.config/outgrep/config\fP
+.sp
+\fBWindows:\fP \fB%APPDATA%\\outgrep\\config\fP
+.sp
+If a config file already exists, this command will fail unless used with
+the \fB--force\fP flag.
+"
+    }
+
+    fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+        assert!(v.unwrap_switch());
+        args.special = Some(SpecialMode::InitGlobalConfig);
+        Ok(())
+    }
+}
+
+/// --init-local-config
+#[derive(Debug)]
+struct InitLocalConfig;
+
+impl Flag for InitLocalConfig {
+    fn is_switch(&self) -> bool {
+        true
+    }
+    fn name_long(&self) -> &'static str {
+        "init-local-config"
+    }
+    fn doc_category(&self) -> Category {
+        Category::Config
+    }
+    fn doc_short(&self) -> &'static str {
+        "Create initial local project config file."
+    }
+    fn doc_long(&self) -> &'static str {
+        r"
+Creates an initial local configuration file for the current project with
+example settings. The file is created in the project root directory as
+\fB.outgrep/config\fP.
+.sp
+Project root is detected by looking for version control directories
+(\fB.git\fP) or common project files (\fBCargo.toml\fP, \fBpackage.json\fP, etc.).
+.sp
+Local configuration files override global settings and are overridden by
+command-line flags.
+"
+    }
+
+    fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+        assert!(v.unwrap_switch());
+        args.special = Some(SpecialMode::InitLocalConfig);
+        Ok(())
+    }
+}
+
+/// --open-global-config
+#[derive(Debug)]
+struct OpenGlobalConfig;
+
+impl Flag for OpenGlobalConfig {
+    fn is_switch(&self) -> bool {
+        true
+    }
+    fn name_long(&self) -> &'static str {
+        "open-global-config"
+    }
+    fn doc_category(&self) -> Category {
+        Category::Config
+    }
+    fn doc_short(&self) -> &'static str {
+        "Open global config file in editor."
+    }
+    fn doc_long(&self) -> &'static str {
+        r"
+Opens the global configuration file in your preferred text editor. The editor
+is determined by checking the \fBEDITOR\fP environment variable first, then
+falling back to platform-specific defaults:
+.sp
+\fBLinux/Unix:\fP \fBnano\fP, \fBvim\fP, \fBvi\fP
+.sp
+\fBmacOS:\fP \fBnano\fP, \fBvim\fP, \fBopen\fP (TextEdit)
+.sp
+\fBWindows:\fP \fBnotepad.exe\fP, \fBcode.exe\fP
+.sp
+If no global config file exists, use \fB--init-global-config\fP first.
+"
+    }
+
+    fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+        assert!(v.unwrap_switch());
+        args.special = Some(SpecialMode::OpenGlobalConfig);
+        Ok(())
+    }
+}
+
+/// --open-local-config
+#[derive(Debug)]
+struct OpenLocalConfig;
+
+impl Flag for OpenLocalConfig {
+    fn is_switch(&self) -> bool {
+        true
+    }
+    fn name_long(&self) -> &'static str {
+        "open-local-config"
+    }
+    fn doc_category(&self) -> Category {
+        Category::Config
+    }
+    fn doc_short(&self) -> &'static str {
+        "Open local project config file in editor."
+    }
+    fn doc_long(&self) -> &'static str {
+        r"
+Opens the local project configuration file in your preferred text editor.
+The editor is determined the same way as \fB--open-global-config\fP.
+.sp
+If no local config file exists, use \fB--init-local-config\fP first.
+"
+    }
+
+    fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+        assert!(v.unwrap_switch());
+        args.special = Some(SpecialMode::OpenLocalConfig);
+        Ok(())
+    }
 }
 
 mod convert {

@@ -46,6 +46,10 @@ pub struct SemanticConfig {
     pub max_results: usize,
     /// Number of dimensions in embeddings
     pub embedding_dimensions: usize,
+    /// Optional custom model storage path
+    pub model_path: Option<String>,
+    /// Model name to use for embeddings
+    pub model_name: Option<String>,
 }
 
 /// Index for fast vector similarity search
@@ -66,6 +70,8 @@ impl Default for SemanticConfig {
             similarity_threshold: 0.2, // 20% similarity threshold
             max_results: 10,
             embedding_dimensions: 384,
+            model_path: None,
+            model_name: None,
         }
     }
 }

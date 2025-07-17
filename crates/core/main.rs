@@ -398,6 +398,58 @@ fn special(mode: crate::flags::SpecialMode) -> anyhow::Result<ExitCode> {
             }
             output
         }
+        // Config management special modes
+        SpecialMode::ConfigStatus => {
+            match flags::ConfigManager::show_config_status() {
+                Ok(()) => return Ok(ExitCode::from(0)),
+                Err(e) => {
+                    writeln!(std::io::stderr(), "Error: {}", e)?;
+                    return Ok(ExitCode::from(1));
+                }
+            }
+        }
+        SpecialMode::InitGlobalConfig => {
+            match flags::ConfigManager::init_global_config(false) {
+                Ok(path) => {
+                    writeln!(std::io::stdout(), "Global config created at: {}", path.display())?;
+                    return Ok(ExitCode::from(0));
+                }
+                Err(e) => {
+                    writeln!(std::io::stderr(), "Error: {}", e)?;
+                    return Ok(ExitCode::from(1));
+                }
+            }
+        }
+        SpecialMode::InitLocalConfig => {
+            match flags::ConfigManager::init_local_config(false) {
+                Ok(path) => {
+                    writeln!(std::io::stdout(), "Local config created at: {}", path.display())?;
+                    return Ok(ExitCode::from(0));
+                }
+                Err(e) => {
+                    writeln!(std::io::stderr(), "Error: {}", e)?;
+                    return Ok(ExitCode::from(1));
+                }
+            }
+        }
+        SpecialMode::OpenGlobalConfig => {
+            match flags::ConfigManager::open_global_config() {
+                Ok(()) => return Ok(ExitCode::from(0)),
+                Err(e) => {
+                    writeln!(std::io::stderr(), "Error: {}", e)?;
+                    return Ok(ExitCode::from(1));
+                }
+            }
+        }
+        SpecialMode::OpenLocalConfig => {
+            match flags::ConfigManager::open_local_config() {
+                Ok(()) => return Ok(ExitCode::from(0)),
+                Err(e) => {
+                    writeln!(std::io::stderr(), "Error: {}", e)?;
+                    return Ok(ExitCode::from(1));
+                }
+            }
+        }
     };
     writeln!(std::io::stdout(), "{}", output.trim_end())?;
     Ok(exit)

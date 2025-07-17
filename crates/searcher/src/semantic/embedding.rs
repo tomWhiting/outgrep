@@ -1,4 +1,5 @@
 use super::types::{Embedding, SemanticConfig};
+use super::downloader::ModelManager;
 use ndarray::{Array2, ArrayD, CowArray};
 use ort::{
     Environment, GraphOptimizationLevel, Session, SessionBuilder, Value,
@@ -6,23 +7,24 @@ use ort::{
 use std::path::Path;
 use std::sync::Arc;
 
-/// ONNX-based embedder using all-MiniLM-L6-v2
+/// ONNX-based embedder supporting configurable models
 pub struct OnnxEmbedder {
     session: Session,
     tokenizer: tokenizers::Tokenizer,
     environment: Arc<Environment>,
+    model_dimensions: usize,
 }
 
 impl OnnxEmbedder {
-    /// Create new embedder with all-MiniLM-L6-v2 model
-    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        let model_path = Path::new("models/model.onnx");
-        let tokenizer_path = Path::new("models/tokenizer.json");
-
+    /// Create new embedder with specified model files and dimensions
+    pub fn new(model_path: &Path, tokenizer_path: &Path, dimensions: usize) -> Result<Self, Box<dyn std::error::Error>> {
         if !model_path.exists() || !tokenizer_path.exists() {
             return Err(
-                "Model files not found. Run from project root directory."
-                    .into(),
+                format!(
+                    "Model files not found. Expected: {} and {}",
+                    model_path.display(),
+                    tokenizer_path.display()
+                ).into(),
             );
         }
 
@@ -40,7 +42,25 @@ impl OnnxEmbedder {
         let tokenizer = tokenizers::Tokenizer::from_file(tokenizer_path)
             .map_err(|e| format!("Failed to load tokenizer: {}", e))?;
 
-        Ok(Self { session, tokenizer, environment })
+        Ok(Self { session, tokenizer, environment, model_dimensions: dimensions })
+    }
+
+    /// Create embedder from config using model registry
+    pub fn from_config(config: &SemanticConfig) -> Result<Self, Box<dyn std::error::Error>> {
+        let downloader = ModelManager::create_downloader(
+            config.model_path.as_deref().map(|s| std::path::Path::new(s))
+        )?;
+
+        let model_name = config.model_name.as_deref().unwrap_or("all-MiniLM-L6-v2");
+        
+        // Ensure model is available (download if needed)
+        downloader.ensure_model_available(model_name)?;
+        
+        // Get model paths and info
+        let (model_path, tokenizer_path) = downloader.get_model_paths(model_name)?;
+        let model_info = downloader.get_model_info(model_name)?;
+        
+        Self::new(&model_path, &tokenizer_path, model_info.dimensions)
     }
 
     /// Generate embedding using ONNX model
@@ -137,49 +157,52 @@ impl OnnxEmbedder {
             );
         }
 
-        // Ensure we always return exactly 384 dimensions
-        if pooled.len() != 384 {
+        // Ensure we return the expected number of dimensions
+        if pooled.len() != self.model_dimensions {
             eprintln!(
-                "WARNING: ONNX model produced {} dimensions, expected 384",
-                pooled.len()
+                "WARNING: ONNX model produced {} dimensions, expected {}",
+                pooled.len(),
+                self.model_dimensions
             );
-            // Pad or truncate to exactly 384 dimensions
-            pooled.resize(384, 0.0);
+            // Pad or truncate to expected dimensions
+            pooled.resize(self.model_dimensions, 0.0);
         }
 
-        Ok(Embedding { vector: pooled, dimensions: 384 })
+        Ok(Embedding { vector: pooled, dimensions: self.model_dimensions })
     }
 }
 
 /// Generate embedding for a code snippet
 pub fn generate_embedding(code: &str, config: &SemanticConfig) -> Embedding {
     // Try ONNX model first, fall back to hash-based
-    match OnnxEmbedder::new() {
+    match OnnxEmbedder::from_config(config) {
         Ok(embedder) => {
             match embedder.embed(code) {
                 Ok(embedding) => {
-                    // Ensure ONNX embedding is exactly 384 dimensions
+                    // Ensure ONNX embedding has correct dimensions
                     let mut vector = embedding.vector;
-                    if vector.len() != 384 {
-                        vector.resize(384, 0.0);
+                    if vector.len() != config.embedding_dimensions {
+                        vector.resize(config.embedding_dimensions, 0.0);
                     }
-                    return Embedding { vector, dimensions: 384 };
+                    return Embedding { vector, dimensions: config.embedding_dimensions };
                 }
-                Err(_) => {
+                Err(e) => {
+                    eprintln!("ONNX embedding generation failed: {}", e);
                     // Fall through to hash-based embedding
                 }
             }
         }
-        Err(_) => {
+        Err(e) => {
+            eprintln!("ONNX embedder creation failed: {}", e);
             // Fall through to hash-based embedding
         }
     }
 
-    // Fallback to hash-based embedding - always 384 dimensions
+    // Fallback to hash-based embedding with configured dimensions
     let hash = simple_hash(code);
-    let vector = hash_to_vector(hash, 384);
+    let vector = hash_to_vector(hash, config.embedding_dimensions);
 
-    Embedding { vector, dimensions: 384 }
+    Embedding { vector, dimensions: config.embedding_dimensions }
 }
 
 /// Calculate cosine similarity between two embeddings

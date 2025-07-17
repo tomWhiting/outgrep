@@ -11,15 +11,9 @@ pub fn search_semantic(
 ) -> Vec<SemanticMatch> {
     let query_embedding = generate_embedding(query, config);
 
-    // Ensure query embedding is exactly 384 dimensions
+    // Ensure query embedding matches configured dimensions
     let mut query_vector = query_embedding.vector.clone();
-    if query_vector.len() != 384 {
-        eprintln!(
-            "DEBUG: Resizing query vector from {} to 384 dimensions",
-            query_vector.len()
-        );
-    }
-    query_vector.resize(384, 0.0);
+    query_vector.resize(config.embedding_dimensions, 0.0);
 
     // Search for nearest neighbors
     let query_point = EmbeddingPoint(query_vector);

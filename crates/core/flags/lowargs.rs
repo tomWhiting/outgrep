@@ -99,6 +99,11 @@ pub(crate) struct LowArgs {
     pub(crate) replace: Option<BString>,
     pub(crate) search_zip: bool,
     pub(crate) semantic: bool,
+    pub(crate) semantic_model_path: Option<PathBuf>,
+    pub(crate) semantic_model: Option<String>,
+    pub(crate) semantic_dimensions: Option<usize>,
+    pub(crate) semantic_similarity_threshold: Option<f32>,
+    pub(crate) semantic_max_results: Option<usize>,
     pub(crate) sort: Option<SortMode>,
     pub(crate) stats: bool,
     pub(crate) stop_on_nonmatch: bool,
@@ -180,6 +185,11 @@ impl Default for LowArgs {
             replace: None,
             search_zip: false,
             semantic: false,
+            semantic_model_path: None,
+            semantic_model: None,
+            semantic_dimensions: None,
+            semantic_similarity_threshold: None,
+            semantic_max_results: None,
             sort: None,
             stats: false,
             stop_on_nonmatch: false,
@@ -220,6 +230,16 @@ pub(crate) enum SpecialMode {
     /// Show PCRE2's version information, or an error if this version of
     /// ripgrep wasn't compiled with PCRE2 support.
     VersionPCRE2,
+    /// Initialize a global configuration file with default settings.
+    InitGlobalConfig,
+    /// Initialize a local configuration file for the current project.
+    InitLocalConfig,
+    /// Open the global configuration file in the user's preferred editor.
+    OpenGlobalConfig,
+    /// Open the local configuration file in the user's preferred editor.
+    OpenLocalConfig,
+    /// Show the status of configuration files (loaded/not found).
+    ConfigStatus,
 }
 
 /// The overall mode that ripgrep should operate in.

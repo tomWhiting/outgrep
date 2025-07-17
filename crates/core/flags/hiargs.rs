@@ -95,6 +95,11 @@ pub(crate) struct HiArgs {
     replace: Option<BString>,
     search_zip: bool,
     semantic: bool,
+    semantic_model_path: Option<PathBuf>,
+    semantic_model: Option<String>,
+    semantic_dimensions: Option<usize>,
+    semantic_similarity_threshold: Option<f32>,
+    semantic_max_results: Option<usize>,
     sort: Option<SortMode>,
     stats: Option<grep::printer::Stats>,
     stop_on_nonmatch: bool,
@@ -314,6 +319,11 @@ impl HiArgs {
             replace: low.replace,
             search_zip: low.search_zip,
             semantic: low.semantic,
+            semantic_model_path: low.semantic_model_path,
+            semantic_model: low.semantic_model,
+            semantic_dimensions: low.semantic_dimensions,
+            semantic_similarity_threshold: low.semantic_similarity_threshold,
+            semantic_max_results: low.semantic_max_results,
             sort: low.sort,
             stats,
             stop_on_nonmatch: low.stop_on_nonmatch,
@@ -712,6 +722,11 @@ impl HiArgs {
             .ast_context(use_ast_context)
             .syntax_highlighting(self.syntax_highlighting)
             .semantic_search(self.semantic)
+            .semantic_model_path(self.semantic_model_path.clone())
+            .semantic_model(self.semantic_model.clone())
+            .semantic_dimensions(self.semantic_dimensions)
+            .semantic_similarity_threshold(self.semantic_similarity_threshold)
+            .semantic_max_results(self.semantic_max_results)
             .pattern(self.first_pattern().map(|s| s.to_string()));
         Ok(builder.build(matcher, searcher, printer))
     }

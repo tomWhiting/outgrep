@@ -25,6 +25,11 @@ struct Config {
     use_ast_context: bool,
     syntax_highlighting: bool,
     semantic_search: bool,
+    semantic_model_path: Option<std::path::PathBuf>,
+    semantic_model: Option<String>,
+    semantic_dimensions: Option<usize>,
+    semantic_similarity_threshold: Option<f32>,
+    semantic_max_results: Option<usize>,
 }
 
 impl Default for Config {
@@ -38,6 +43,11 @@ impl Default for Config {
             use_ast_context: false,
             syntax_highlighting: true, // Default to true
             semantic_search: false,
+            semantic_model_path: None,
+            semantic_model: None,
+            semantic_dimensions: None,
+            semantic_similarity_threshold: None,
+            semantic_max_results: None,
         }
     }
 }
@@ -206,6 +216,51 @@ impl SearchWorkerBuilder {
         yes: bool,
     ) -> &mut SearchWorkerBuilder {
         self.config.semantic_search = yes;
+        self
+    }
+
+    /// Set the semantic model storage path.
+    pub(crate) fn semantic_model_path(
+        &mut self,
+        path: Option<std::path::PathBuf>,
+    ) -> &mut SearchWorkerBuilder {
+        self.config.semantic_model_path = path;
+        self
+    }
+
+    /// Set the semantic embedding model to use.
+    pub(crate) fn semantic_model(
+        &mut self,
+        model: Option<String>,
+    ) -> &mut SearchWorkerBuilder {
+        self.config.semantic_model = model;
+        self
+    }
+
+    /// Set the number of dimensions for semantic embeddings.
+    pub(crate) fn semantic_dimensions(
+        &mut self,
+        dimensions: Option<usize>,
+    ) -> &mut SearchWorkerBuilder {
+        self.config.semantic_dimensions = dimensions;
+        self
+    }
+
+    /// Set the minimum similarity threshold for semantic search.
+    pub(crate) fn semantic_similarity_threshold(
+        &mut self,
+        threshold: Option<f32>,
+    ) -> &mut SearchWorkerBuilder {
+        self.config.semantic_similarity_threshold = threshold;
+        self
+    }
+
+    /// Set the maximum number of semantic search results.
+    pub(crate) fn semantic_max_results(
+        &mut self,
+        max_results: Option<usize>,
+    ) -> &mut SearchWorkerBuilder {
+        self.config.semantic_max_results = max_results;
         self
     }
 
@@ -410,6 +465,7 @@ impl<W: WriteColor> SearchWorker<W> {
                 use_ast_context,
                 syntax_highlighting,
                 semantic_search,
+                Some(&self.config),
                 pattern,
             ),
             #[cfg(feature = "pcre2")]
@@ -421,6 +477,7 @@ impl<W: WriteColor> SearchWorker<W> {
                 use_ast_context,
                 syntax_highlighting,
                 semantic_search,
+                Some(&self.config),
                 pattern,
             ),
         }
@@ -461,10 +518,11 @@ fn search_path_with_context<M: Matcher, W: WriteColor>(
     use_ast_context: bool,
     syntax_highlighting: bool,
     semantic_search: bool,
+    semantic_config: Option<&Config>,
     pattern: Option<&str>,
 ) -> io::Result<SearchResult> {
     if semantic_search {
-        search_path_semantic(matcher, searcher, printer, path, pattern)
+        search_path_semantic(matcher, searcher, printer, path, semantic_config, pattern)
     } else if use_ast_context {
         search_path_ast_context(
             matcher,
@@ -519,12 +577,13 @@ fn search_path_semantic<M: Matcher, W: WriteColor>(
     _searcher: &mut grep::searcher::Searcher,
     _printer: &mut Printer<W>,
     path: &Path,
+    semantic_config: Option<&Config>,
     pattern: Option<&str>,
 ) -> io::Result<SearchResult> {
     use grep::searcher::semantic::{build_index, generate_embedding};
     use grep::searcher::{
         create_ast_calculator_for_file, default_context_types,
-        is_supported_file, SemanticConfig, SemanticSearcher,
+        is_supported_file, SemanticSearcher,
     };
 
     // Check if this file type supports semantic search
@@ -554,7 +613,7 @@ fn search_path_semantic<M: Matcher, W: WriteColor>(
     })?;
 
     // Extract individual functions using AST
-    let config = SemanticConfig::default();
+    let config = build_semantic_config(semantic_config);
     let mut embeddings = Vec::new();
 
     // Extract all symbols by scanning through the file content
@@ -605,7 +664,7 @@ fn search_path_semantic<M: Matcher, W: WriteColor>(
     }
 
     // Build semantic index
-    let index = build_index(embeddings);
+    let index = build_index(embeddings, &config);
 
     // Create searcher and perform search
     let mut semantic_searcher = SemanticSearcher::new(config);
@@ -632,6 +691,24 @@ fn search_path_semantic<M: Matcher, W: WriteColor>(
     }
 
     Ok(SearchResult { has_match, stats: None })
+}
+
+/// Build a SemanticConfig from the search worker config
+fn build_semantic_config(config: Option<&Config>) -> grep::searcher::SemanticConfig {
+    use grep::searcher::SemanticConfig;
+    
+    let default_config = SemanticConfig::default();
+    
+    match config {
+        Some(cfg) => SemanticConfig {
+            similarity_threshold: cfg.semantic_similarity_threshold.unwrap_or(default_config.similarity_threshold),
+            max_results: cfg.semantic_max_results.unwrap_or(default_config.max_results),
+            embedding_dimensions: cfg.semantic_dimensions.unwrap_or(default_config.embedding_dimensions),
+            model_path: cfg.semantic_model_path.as_ref().map(|p| p.to_string_lossy().to_string()),
+            model_name: cfg.semantic_model.clone(),
+        },
+        None => default_config,
+    }
 }
 
 /// Search using AST-based enclosing symbol context.

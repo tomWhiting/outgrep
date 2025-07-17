@@ -1,0 +1,179 @@
+{
+  "version": "1.0",
+  "updated": "2024-01-15T10:00:00Z",
+  "description": "Official outgrep model registry for semantic search",
+  "models": {
+    "all-MiniLM-L6-v2": {
+      "name": "all-MiniLM-L6-v2",
+      "description": "Fast, lightweight model for general semantic search. Best balance of speed and quality.",
+      "dimensions": 384,
+      "size_mb": 23,
+      "license": "Apache-2.0",
+      "performance": {
+        "speed": "fast",
+        "quality": "good",
+        "memory_mb": 50,
+        "inference_time_ms": 15
+      },
+      "files": {
+        "model": {
+          "url": "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx",
+          "filename": "model.onnx",
+          "sha256": "placeholder_hash_1",
+          "size_bytes": 24156789
+        },
+        "tokenizer": {
+          "url": "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json",
+          "filename": "tokenizer.json", 
+          "sha256": "placeholder_hash_2",
+          "size_bytes": 456789
+        }
+      },
+      "use_cases": ["general", "code", "documentation", "fast-search"],
+      "supported_languages": ["en", "code"],
+      "recommended_for": "Most users - good default choice"
+    },
+    "all-MiniLM-L12-v2": {
+      "name": "all-MiniLM-L12-v2",
+      "description": "Improved version with better quality than L6, still fast and efficient.",
+      "dimensions": 384,
+      "size_mb": 45,
+      "license": "Apache-2.0",
+      "performance": {
+        "speed": "fast",
+        "quality": "very-good",
+        "memory_mb": 80,
+        "inference_time_ms": 25
+      },
+      "files": {
+        "model": {
+          "url": "https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2/resolve/main/model.onnx",
+          "filename": "model.onnx",
+          "sha256": "placeholder_hash_3",
+          "size_bytes": 47185920
+        },
+        "tokenizer": {
+          "url": "https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2/resolve/main/tokenizer.json",
+          "filename": "tokenizer.json",
+          "sha256": "placeholder_hash_4", 
+          "size_bytes": 456789
+        }
+      },
+      "use_cases": ["general", "code", "documentation", "balanced-performance"],
+      "supported_languages": ["en", "code"],
+      "recommended_for": "Users wanting better quality with reasonable speed"
+    },
+    "all-mpnet-base-v2": {
+      "name": "all-mpnet-base-v2",
+      "description": "High-quality model for best semantic understanding. Slower but excellent results.",
+      "dimensions": 768,
+      "size_mb": 420,
+      "license": "Apache-2.0",
+      "performance": {
+        "speed": "medium",
+        "quality": "excellent",
+        "memory_mb": 200,
+        "inference_time_ms": 50
+      },
+      "files": {
+        "model": {
+          "url": "https://huggingface.co/sentence-transformers/all-mpnet-base-v2/resolve/main/model.onnx",
+          "filename": "model.onnx",
+          "sha256": "placeholder_hash_5",
+          "size_bytes": 440000000
+        },
+        "tokenizer": {
+          "url": "https://huggingface.co/sentence-transformers/all-mpnet-base-v2/resolve/main/tokenizer.json",
+          "filename": "tokenizer.json",
+          "sha256": "placeholder_hash_6",
+          "size_bytes": 456789
+        }
+      },
+      "use_cases": ["research", "high-quality", "production", "complex-queries"],
+      "supported_languages": ["en", "code"],
+      "recommended_for": "Users prioritizing search quality over speed"
+    },
+    "paraphrase-MiniLM-L6-v2": {
+      "name": "paraphrase-MiniLM-L6-v2", 
+      "description": "Optimized for finding paraphrases and similar meanings. Great for code refactoring searches.",
+      "dimensions": 384,
+      "size_mb": 23,
+      "license": "Apache-2.0",
+      "performance": {
+        "speed": "fast",
+        "quality": "good",
+        "memory_mb": 50,
+        "inference_time_ms": 15
+      },
+      "files": {
+        "model": {
+          "url": "https://huggingface.co/sentence-transformers/paraphrase-MiniLM-L6-v2/resolve/main/model.onnx",
+          "filename": "model.onnx",
+          "sha256": "placeholder_hash_7",
+          "size_bytes": 24156789
+        },
+        "tokenizer": {
+          "url": "https://huggingface.co/sentence-transformers/paraphrase-MiniLM-L6-v2/resolve/main/tokenizer.json",
+          "filename": "tokenizer.json",
+          "sha256": "placeholder_hash_8",
+          "size_bytes": 456789
+        }
+      },
+      "use_cases": ["paraphrase", "code-similarity", "refactoring", "duplicate-detection"],
+      "supported_languages": ["en", "code"],
+      "recommended_for": "Finding similar code patterns and refactoring opportunities"
+    },
+    "multi-qa-MiniLM-L6-cos-v1": {
+      "name": "multi-qa-MiniLM-L6-cos-v1",
+      "description": "Specialized for question-answering and finding relevant code documentation.",
+      "dimensions": 384,
+      "size_mb": 23,
+      "license": "Apache-2.0", 
+      "performance": {
+        "speed": "fast",
+        "quality": "good",
+        "memory_mb": 50,
+        "inference_time_ms": 15
+      },
+      "files": {
+        "model": {
+          "url": "https://huggingface.co/sentence-transformers/multi-qa-MiniLM-L6-cos-v1/resolve/main/model.onnx",
+          "filename": "model.onnx",
+          "sha256": "placeholder_hash_9",
+          "size_bytes": 24156789
+        },
+        "tokenizer": {
+          "url": "https://huggingface.co/sentence-transformers/multi-qa-MiniLM-L6-cos-v1/resolve/main/tokenizer.json",
+          "filename": "tokenizer.json",
+          "sha256": "placeholder_hash_10",
+          "size_bytes": 456789
+        }
+      },
+      "use_cases": ["qa", "documentation", "help-text", "comment-search"],
+      "supported_languages": ["en", "code"],
+      "recommended_for": "Searching documentation, comments, and help text"
+    }
+  },
+  "recommendations": {
+    "default": "all-MiniLM-L6-v2",
+    "fast": "all-MiniLM-L6-v2",
+    "balanced": "all-MiniLM-L12-v2", 
+    "quality": "all-mpnet-base-v2",
+    "paraphrase": "paraphrase-MiniLM-L6-v2",
+    "documentation": "multi-qa-MiniLM-L6-cos-v1"
+  },
+  "categories": {
+    "general-purpose": ["all-MiniLM-L6-v2", "all-MiniLM-L12-v2", "all-mpnet-base-v2"],
+    "code-specific": ["paraphrase-MiniLM-L6-v2", "multi-qa-MiniLM-L6-cos-v1"],
+    "fast": ["all-MiniLM-L6-v2", "paraphrase-MiniLM-L6-v2", "multi-qa-MiniLM-L6-cos-v1"],
+    "high-quality": ["all-mpnet-base-v2", "all-MiniLM-L12-v2"]
+  },
+  "sources": {
+    "huggingface": {
+      "base_url": "https://huggingface.co/sentence-transformers",
+      "description": "Official sentence-transformers models from Hugging Face",
+      "reliability": "high",
+      "cdn": true
+    }
+  }
+}

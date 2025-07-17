@@ -64,6 +64,10 @@ textwrap = { version = "0.16.0", default-features = false }
 # AST functionality - core feature
 outgrep-ast-core = { path = "crates/ast-core" }
 outgrep-ast-language = { path = "crates/ast-language" }
+which = "8.0.0"
+dirs = "6.0.0"
+serde = "1.0.77"
+toml = "0.9.2"
 
 [target.'cfg(all(target_env = "musl", target_pointer_width = "64"))'.dependencies.jemallocator]
 version = "0.5.0"
@@ -71,6 +75,7 @@ version = "0.5.0"
 [dev-dependencies]
 serde = "1.0.77"
 serde_derive = "1.0.77"
+tempfile = "3.20.0"
 walkdir = "2"
 
 [features]
