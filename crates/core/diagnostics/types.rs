@@ -21,27 +21,29 @@ pub struct FileIndex {
     pub dirty: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GitDiagnostics {
-    pub status: GitFileStatus,
-    pub staged: bool,
-    pub diff_stats: Option<DiffStats>,
-    pub last_commit: Option<String>,
+    pub is_repo: bool,
+    pub current_branch: Option<String>,
+    pub total_commits: u64,
+    pub ahead_behind: Option<(u64, u64)>, // (ahead, behind)
+    pub file_stats: DiffStats,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum GitFileStatus {
     Modified,
-    Added,
-    Deleted,
+    Staged,
     Untracked,
-    Clean,
+    Conflicted,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiffStats {
-    pub additions: u32,
-    pub deletions: u32,
+    pub staged: u64,
+    pub modified: u64,
+    pub untracked: u64,
+    pub conflicted: u64,
 }
 
 #[derive(Debug, Clone)]

@@ -545,7 +545,7 @@ fn print_stats<W: Write>(
 /// This function demonstrates the file watching and metrics capabilities
 /// by analyzing the current directory and optionally watching for changes.
 async fn analyze(args: &HiArgs) -> anyhow::Result<ExitCode> {
-    use crate::diagnostics::{FileWatcher, MetricsCalculator};
+    use crate::diagnostics::{FileWatcher, MetricsCalculator, GitAnalyzer};
     use std::io::Write;
     use std::time::Duration;
     
@@ -557,6 +557,12 @@ async fn analyze(args: &HiArgs) -> anyhow::Result<ExitCode> {
     let current_dir = std::path::Path::new(".");
     
     println!("📁 Analyzing directory: {}", current_dir.display());
+    
+    // Initialize Git analyzer and display repository information
+    let git_analyzer = GitAnalyzer::new(current_dir);
+    if let Ok(git_diagnostics) = git_analyzer.get_diagnostics() {
+        println!("🔗 Git Status: {}", git_analyzer.diagnostics_summary(&git_diagnostics));
+    }
     println!();
     
     // Walk through files and calculate metrics
