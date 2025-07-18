@@ -214,6 +214,41 @@ impl GitAnalyzer {
             branch, ahead_behind, commits, stats.staged, stats.modified, stats.untracked, stats.conflicted
         )
     }
+
+    /// Get the content of a file at HEAD for diff comparison
+    pub fn get_file_at_head(&self, path: &Path) -> Result<String, Box<dyn std::error::Error>> {
+        let repo = match &self.repo {
+            Some(repo) => repo,
+            None => return Err("Not a Git repository".into()),
+        };
+
+        let head = repo.head()?;
+        let head_commit = head.peel_to_commit()?;
+        let head_tree = head_commit.tree()?;
+        
+        // Convert path to relative path from repo root
+        let repo_root = repo.workdir().ok_or("Repository has no working directory")?;
+        let relative_path_buf = if path.is_absolute() {
+            path.strip_prefix(repo_root).map_err(|_| "Path is not within repository")?.to_path_buf()
+        } else {
+            // If path is relative, try to resolve it relative to the current working directory
+            let cwd = std::env::current_dir()?;
+            let absolute_path = cwd.join(path);
+            absolute_path.strip_prefix(repo_root).map_err(|_| "Path is not within repository")?.to_path_buf()
+        };
+        let relative_path = relative_path_buf.as_path();
+        
+        // Get the tree entry for this path
+        let tree_entry = head_tree.get_path(relative_path)?;
+        let object = tree_entry.to_object(repo)?;
+        
+        // Convert to blob and get content
+        let blob = object.into_blob().map_err(|_| "Object is not a blob")?;
+        let content = blob.content();
+        
+        // Convert bytes to string
+        Ok(String::from_utf8_lossy(content).to_string())
+    }
 }
 
 #[cfg(test)]

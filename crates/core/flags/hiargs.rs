@@ -47,6 +47,7 @@ pub(crate) struct HiArgs {
     crlf: bool,
     analyze: bool,
     watch: bool,
+    diff: bool,
     dfa_size_limit: Option<usize>,
     encoding: EncodingMode,
     engine: EngineChoice,
@@ -276,6 +277,7 @@ impl HiArgs {
             crlf: low.crlf,
             analyze: low.analyze,
             watch: low.watch,
+            diff: low.diff,
             dfa_size_limit: low.dfa_size_limit,
             encoding: low.encoding,
             engine: low.engine,
@@ -799,6 +801,11 @@ impl HiArgs {
     /// Return whether watch mode is enabled.
     pub(crate) fn watch(&self) -> bool {
         self.watch
+    }
+
+    /// Return whether diff mode is enabled.
+    pub(crate) fn diff(&self) -> bool {
+        self.diff
     }
 
     /// Return the first search pattern, if any.

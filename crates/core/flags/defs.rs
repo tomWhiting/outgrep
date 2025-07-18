@@ -64,6 +64,7 @@ pub(super) const FLAGS: &[&dyn Flag] = &[
     &Debug,
     &Analyze,
     &Watch,
+    &Diff,
     &DfaSizeLimit,
     &Encoding,
     &Engine,
@@ -1636,6 +1637,61 @@ fn test_watch() {
     assert_eq!(false, args.watch);
     let args = parse_low_raw(["--watch"]).unwrap();
     assert_eq!(true, args.watch);
+}
+
+/// --diff
+#[derive(Debug)]
+struct Diff;
+impl Flag for Diff {
+    fn is_switch(&self) -> bool {
+        true
+    }
+    fn name_long(&self) -> &'static str {
+        "diff"
+    }
+    fn doc_category(&self) -> Category {
+        Category::Filter
+    }
+    fn doc_short(&self) -> &'static str {
+        r"Show semantic diffs for changed files during analysis."
+    }
+    fn doc_long(&self) -> &'static str {
+        r"
+Show semantic diffs for changed files during analysis.
+.sp
+The \flag{diff} flag enables outgrep's semantic diff capabilities,
+displaying detailed, colorized diffs for files that have been
+modified according to Git status.
+.sp
+This flag is typically used in combination with \flag{analyze} to
+provide detailed diff information for changed files during code
+analysis. The diff output shows line-by-line changes with syntax
+highlighting and contextual information.
+.sp
+Features include:
+.sp
+- Colorized diff output with red for deletions and green for additions
+- Line-by-line comparison with context
+- Support for all file types analyzed by outgrep
+- Integration with Git to compare against HEAD
+.sp
+This mode is useful for reviewing changes during development and
+understanding the impact of modifications on the codebase.
+"
+    }
+    fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+        assert!(v.unwrap_switch(), "--diff can only be enabled");
+        args.diff = true;
+        Ok(())
+    }
+}
+#[cfg(test)]
+#[test]
+fn test_diff() {
+    let args = parse_low_raw(None::<&str>).unwrap();
+    assert_eq!(false, args.diff);
+    let args = parse_low_raw(["--diff"]).unwrap();
+    assert_eq!(true, args.diff);
 }
 
 /// --dfa-size-limit

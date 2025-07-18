@@ -559,13 +559,12 @@ async fn analyze(args: &HiArgs) -> anyhow::Result<ExitCode> {
     let current_dir = std::path::Path::new(".");
     
     println!("📁 Analyzing directory: {}", current_dir.display());
-    
-    // Initialize Git analyzer and display repository information
-    let git_analyzer = GitAnalyzer::new(current_dir);
-    if let Ok(git_diagnostics) = git_analyzer.get_diagnostics() {
-        println!("🔗 Git Status: {}", git_analyzer.diagnostics_summary(&git_diagnostics));
-    }
     println!();
+    
+    // Initialize Git analyzer to get changed files
+    let git_analyzer = GitAnalyzer::new(current_dir);
+    let git_status = git_analyzer.get_status().unwrap_or_default();
+    let git_diagnostics = git_analyzer.get_diagnostics().ok();
     
     // Walk through files and calculate metrics
     let mut total_files = 0;
@@ -610,8 +609,21 @@ async fn analyze(args: &HiArgs) -> anyhow::Result<ExitCode> {
                             total_functions += metrics.function_count as u64;
                             total_complexity += metrics.cyclomatic_complexity as u64;
                             
-                            println!("📄 {}: {}", 
-                                path.strip_prefix(current_dir).unwrap_or(path).display(),
+                            let relative_path = path.strip_prefix(current_dir).unwrap_or(path);
+                            let status_icon = if let Some(git_status) = git_status.get(relative_path) {
+                                match git_status {
+                                    crate::diagnostics::GitFileStatus::Modified => "📝",
+                                    crate::diagnostics::GitFileStatus::Staged => "📁",
+                                    crate::diagnostics::GitFileStatus::Untracked => "❓",
+                                    crate::diagnostics::GitFileStatus::Conflicted => "⚠️",
+                                }
+                            } else {
+                                "📄"
+                            };
+                            
+                            println!("{} {}: {}", 
+                                status_icon,
+                                relative_path.display(),
                                 MetricsCalculator::metrics_summary(&metrics)
                             );
                         }
@@ -632,7 +644,67 @@ async fn analyze(args: &HiArgs) -> anyhow::Result<ExitCode> {
         if total_functions > 0 { total_complexity as f64 / total_functions as f64 } else { 0.0 }
     );
     
+    // Add Git status information at the bottom (summary section)
+    if let Some(git_diagnostics) = git_diagnostics {
+        println!();
+        println!("🔗 Git Status: {}", git_analyzer.diagnostics_summary(&git_diagnostics));
+    }
+    
+    // Show diffs for changed files if diff flag is enabled
+    if args.diff() && !git_status.is_empty() {
+        println!();
+        println!("📋 Semantic Diffs for Changed Files:");
+        println!("{}", "═".repeat(60));
+        
+        for (relative_path, status) in &git_status {
+            match status {
+                crate::diagnostics::GitFileStatus::Modified | 
+                crate::diagnostics::GitFileStatus::Staged => {
+                    let full_path = current_dir.join(relative_path);
+                    if let Err(e) = show_semantic_diff(&full_path, &git_analyzer) {
+                        eprintln!("Warning: Could not show diff for {}: {}", relative_path.display(), e);
+                    }
+                }
+                _ => {} // Skip untracked and conflicted files
+            }
+        }
+    }
+    
     Ok(ExitCode::from(0))
+}
+
+/// Show semantic diff for a file using the similar crate
+fn show_semantic_diff(path: &std::path::Path, git_analyzer: &crate::diagnostics::GitAnalyzer) -> Result<(), Box<dyn std::error::Error>> {
+    use similar::{ChangeTag, TextDiff};
+    
+    // Get the current content
+    let current_content = std::fs::read_to_string(path)?;
+    
+    // Get the Git HEAD content for comparison
+    let head_content = git_analyzer.get_file_at_head(path)?;
+    
+    // Create a diff
+    let diff = TextDiff::from_lines(&head_content, &current_content);
+    
+    println!("\n📄 {}", path.display());
+    println!("{}", "─".repeat(50));
+    
+    let mut has_changes = false;
+    for change in diff.iter_all_changes() {
+        has_changes = true;
+        let sign = match change.tag() {
+            ChangeTag::Delete => "-",
+            ChangeTag::Insert => "+",
+            ChangeTag::Equal => " ",
+        };
+        print!("{}{}", sign, change);
+    }
+    
+    if !has_changes {
+        println!("No changes detected");
+    }
+    
+    Ok(())
 }
 
 /// Entry point for watch mode.
@@ -703,12 +775,10 @@ async fn analyze_and_watch(args: &HiArgs) -> anyhow::Result<ExitCode> {
     
     println!("📁 Analyzing directory: {}", current_dir.display());
     
-    // Initialize Git analyzer and display repository information
+    // Initialize Git analyzer and get status
     let git_analyzer = GitAnalyzer::new(current_dir);
-    if let Ok(git_diagnostics) = git_analyzer.get_diagnostics() {
-        println!("🔗 Git Status: {}", git_analyzer.diagnostics_summary(&git_diagnostics));
-    }
-    println!();
+    let git_status = git_analyzer.get_status().unwrap_or_default();
+    let git_diagnostics = git_analyzer.get_diagnostics().ok();
     
     // Walk through files and calculate metrics
     let mut total_files = 0;
@@ -753,8 +823,21 @@ async fn analyze_and_watch(args: &HiArgs) -> anyhow::Result<ExitCode> {
                             total_functions += metrics.function_count as u64;
                             total_complexity += metrics.cyclomatic_complexity as u64;
                             
-                            println!("📄 {}: {}", 
-                                path.strip_prefix(current_dir).unwrap_or(path).display(),
+                            let relative_path = path.strip_prefix(current_dir).unwrap_or(path);
+                            let status_icon = if let Some(git_status) = git_status.get(relative_path) {
+                                match git_status {
+                                    crate::diagnostics::GitFileStatus::Modified => "📝",
+                                    crate::diagnostics::GitFileStatus::Staged => "📁",
+                                    crate::diagnostics::GitFileStatus::Untracked => "❓",
+                                    crate::diagnostics::GitFileStatus::Conflicted => "⚠️",
+                                }
+                            } else {
+                                "📄"
+                            };
+                            
+                            println!("{} {}: {}", 
+                                status_icon,
+                                relative_path.display(),
                                 MetricsCalculator::metrics_summary(&metrics)
                             );
                         }
@@ -774,6 +857,12 @@ async fn analyze_and_watch(args: &HiArgs) -> anyhow::Result<ExitCode> {
     println!("  Average complexity: {:.1}", 
         if total_functions > 0 { total_complexity as f64 / total_functions as f64 } else { 0.0 }
     );
+    
+    // Add Git status information at the bottom (summary section)
+    if let Some(git_diagnostics) = git_diagnostics {
+        println!();
+        println!("🔗 Git Status: {}", git_analyzer.diagnostics_summary(&git_diagnostics));
+    }
     println!();
     
     // Now start file watching
