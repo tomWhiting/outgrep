@@ -77,6 +77,62 @@ impl GitAnalyzer {
         Ok(file_statuses)
     }
 
+    /// Get repository status filtered by current working directory
+    pub fn get_status_for_cwd(&self) -> Result<HashMap<PathBuf, GitFileStatus>, Box<dyn std::error::Error>> {
+        let all_statuses = self.get_status()?;
+        let repo = match &self.repo {
+            Some(repo) => repo,
+            None => return Ok(HashMap::new()),
+        };
+
+        let repo_root = repo.workdir().ok_or("Repository has no working directory")?;
+        let cwd = std::env::current_dir()?;
+        
+        // Get relative path from repo root to current working directory
+        let cwd_relative = if cwd.starts_with(repo_root) {
+            cwd.strip_prefix(repo_root).unwrap_or(Path::new(""))
+        } else {
+            return Ok(HashMap::new()); // Not in repo
+        };
+
+        let mut filtered_statuses = HashMap::new();
+        
+        for (file_path, status) in all_statuses {
+            // Check if file is in current working directory or subdirectories
+            if cwd_relative.as_os_str().is_empty() {
+                // We're at repo root, include all files
+                filtered_statuses.insert(file_path, status);
+            } else if file_path.starts_with(cwd_relative) {
+                // File is in current directory or subdirectories
+                // Convert to relative path from current directory
+                let relative_to_cwd = file_path.strip_prefix(cwd_relative).unwrap_or(&file_path);
+                filtered_statuses.insert(relative_to_cwd.to_path_buf(), status);
+            }
+        }
+
+        Ok(filtered_statuses)
+    }
+
+    /// Get the repository root directory
+    pub fn get_repo_root(&self) -> Option<&Path> {
+        self.repo.as_ref()?.workdir()
+    }
+
+    /// Convert a path to be relative to the repository root
+    pub fn path_relative_to_repo(&self, path: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
+        let repo_root = self.get_repo_root().ok_or("Repository has no working directory")?;
+        let absolute_path = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            std::env::current_dir()?.join(path)
+        };
+        
+        let relative_path = absolute_path.strip_prefix(repo_root)
+            .map_err(|_| "Path is not within repository")?;
+        
+        Ok(relative_path.to_path_buf())
+    }
+
     /// Get basic Git diagnostics
     pub fn get_diagnostics(&self) -> Result<GitDiagnostics, Box<dyn std::error::Error>> {
         let repo = match &self.repo {
@@ -227,15 +283,7 @@ impl GitAnalyzer {
         let head_tree = head_commit.tree()?;
         
         // Convert path to relative path from repo root
-        let repo_root = repo.workdir().ok_or("Repository has no working directory")?;
-        let relative_path_buf = if path.is_absolute() {
-            path.strip_prefix(repo_root).map_err(|_| "Path is not within repository")?.to_path_buf()
-        } else {
-            // If path is relative, try to resolve it relative to the current working directory
-            let cwd = std::env::current_dir()?;
-            let absolute_path = cwd.join(path);
-            absolute_path.strip_prefix(repo_root).map_err(|_| "Path is not within repository")?.to_path_buf()
-        };
+        let relative_path_buf = self.path_relative_to_repo(path)?;
         let relative_path = relative_path_buf.as_path();
         
         // Get the tree entry for this path
@@ -248,6 +296,94 @@ impl GitAnalyzer {
         
         // Convert bytes to string
         Ok(String::from_utf8_lossy(content).to_string())
+    }
+
+    /// Get semantic diff for a file using diffsitter
+    pub fn get_semantic_diff(&self, path: &Path) -> Result<String, Box<dyn std::error::Error>> {
+        // Get current file content
+        let current_content = std::fs::read_to_string(path)?;
+        
+        // Get HEAD content - need to handle path resolution properly
+        let head_content = match self.get_file_at_head(path) {
+            Ok(content) => content,
+            Err(_) => {
+                // If direct path fails, try to resolve relative to current working directory
+                let cwd = std::env::current_dir()?;
+                let absolute_path = if path.is_absolute() {
+                    path.to_path_buf()
+                } else {
+                    cwd.join(path)
+                };
+                self.get_file_at_head(&absolute_path)?
+            }
+        };
+        
+        // Try to get file extension for language detection
+        let language = path.extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("txt");
+        
+        // Use diffsitter to generate the diff
+        let diff_output = self.run_diffsitter(&head_content, &current_content, language)?;
+        
+        Ok(diff_output)
+    }
+
+    /// Run diffsitter to generate semantic diff
+    fn run_diffsitter(&self, old_content: &str, new_content: &str, language: &str) -> Result<String, Box<dyn std::error::Error>> {
+        use std::process::Command;
+        use std::io::Write;
+        
+        // Create temporary files
+        let mut old_file = tempfile::NamedTempFile::new()?;
+        let mut new_file = tempfile::NamedTempFile::new()?;
+        
+        // Write content to temporary files
+        old_file.write_all(old_content.as_bytes())?;
+        new_file.write_all(new_content.as_bytes())?;
+        
+        // Run diffsitter
+        let output = Command::new("diffsitter")
+            .arg("--color=always")
+            .arg("--language")
+            .arg(language)
+            .arg(old_file.path())
+            .arg(new_file.path())
+            .output();
+        
+        match output {
+            Ok(output) => {
+                if output.status.success() {
+                    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+                } else {
+                    // Fall back to simple diff if diffsitter fails
+                    self.fallback_diff(old_content, new_content)
+                }
+            }
+            Err(_) => {
+                // Fall back to simple diff if diffsitter is not available
+                self.fallback_diff(old_content, new_content)
+            }
+        }
+    }
+
+    /// Fallback to simple diff if diffsitter is not available
+    fn fallback_diff(&self, old_content: &str, new_content: &str) -> Result<String, Box<dyn std::error::Error>> {
+        use similar::{ChangeTag, TextDiff};
+        
+        let diff = TextDiff::from_lines(old_content, new_content);
+        let mut output = String::new();
+        
+        for change in diff.iter_all_changes() {
+            let sign = match change.tag() {
+                ChangeTag::Delete => "-",
+                ChangeTag::Insert => "+",
+                ChangeTag::Equal => " ",
+            };
+            output.push_str(&format!("{}{}", sign, change));
+        }
+        
+        Ok(output)
     }
 }
 

@@ -90,6 +90,8 @@ fn run(result: crate::flags::ParseResult<HiArgs>) -> anyhow::Result<ExitCode> {
         return tokio::runtime::Runtime::new()?.block_on(analyze(&args));
     } else if args.watch() {
         return tokio::runtime::Runtime::new()?.block_on(watch(&args));
+    } else if args.diff() {
+        return tokio::runtime::Runtime::new()?.block_on(diff_only(&args));
     } else {
         match args.mode() {
             Mode::Search(_) if !args.matches_possible() => false,
@@ -563,7 +565,7 @@ async fn analyze(args: &HiArgs) -> anyhow::Result<ExitCode> {
     
     // Initialize Git analyzer to get changed files
     let git_analyzer = GitAnalyzer::new(current_dir);
-    let git_status = git_analyzer.get_status().unwrap_or_default();
+    let git_status = git_analyzer.get_status_for_cwd().unwrap_or_default();
     let git_diagnostics = git_analyzer.get_diagnostics().ok();
     
     // Walk through files and calculate metrics
@@ -576,6 +578,10 @@ async fn analyze(args: &HiArgs) -> anyhow::Result<ExitCode> {
     let walker = ignore::WalkBuilder::new(current_dir)
         .hidden(false)
         .git_ignore(true)
+        .git_global(true)
+        .git_exclude(true)
+        .ignore(true)
+        .parents(true)
         .build();
     
     for result in walker {
@@ -593,6 +599,17 @@ async fn analyze(args: &HiArgs) -> anyhow::Result<ExitCode> {
         }
         
         let path = entry.path();
+        
+        // Skip common lock files and generated files
+        if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+            match file_name {
+                "Cargo.lock" | "package-lock.json" | "yarn.lock" | "pnpm-lock.yaml" | 
+                "composer.lock" | "Gemfile.lock" | "poetry.lock" | "Pipfile.lock" => {
+                    continue;
+                }
+                _ => {}
+            }
+        }
         
         // Only analyze source files
         if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
@@ -626,6 +643,25 @@ async fn analyze(args: &HiArgs) -> anyhow::Result<ExitCode> {
                                 relative_path.display(),
                                 MetricsCalculator::metrics_summary(&metrics)
                             );
+                            
+                            // Show inline diff if file has changes and diff flag is enabled
+                            if args.diff() && matches!(git_status.get(relative_path), Some(crate::diagnostics::GitFileStatus::Modified) | Some(crate::diagnostics::GitFileStatus::Staged)) {
+                                match git_analyzer.get_semantic_diff(path) {
+                                    Ok(diff) => {
+                                        if !diff.trim().is_empty() {
+                                            println!("    ┌─ Diff:");
+                                            for line in diff.lines() {
+                                                println!("    │ {}", line);
+                                            }
+                                            println!("    └─");
+                                        }
+                                    }
+                                    Err(e) => {
+                                        println!("    ┌─ Diff Error: {}", e);
+                                        println!("    └─");
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -657,6 +693,17 @@ async fn analyze(args: &HiArgs) -> anyhow::Result<ExitCode> {
         println!("{}", "═".repeat(60));
         
         for (relative_path, status) in &git_status {
+            // Skip lock files
+            if let Some(file_name) = relative_path.file_name().and_then(|n| n.to_str()) {
+                match file_name {
+                    "Cargo.lock" | "package-lock.json" | "yarn.lock" | "pnpm-lock.yaml" | 
+                    "composer.lock" | "Gemfile.lock" | "poetry.lock" | "Pipfile.lock" => {
+                        continue;
+                    }
+                    _ => {}
+                }
+            }
+            
             match status {
                 crate::diagnostics::GitFileStatus::Modified | 
                 crate::diagnostics::GitFileStatus::Staged => {
@@ -668,6 +715,95 @@ async fn analyze(args: &HiArgs) -> anyhow::Result<ExitCode> {
                 _ => {} // Skip untracked and conflicted files
             }
         }
+    }
+    
+    Ok(ExitCode::from(0))
+}
+
+/// Entry point for standalone diff mode.
+///
+/// This function shows diffs for all changed files in the current directory.
+async fn diff_only(args: &HiArgs) -> anyhow::Result<ExitCode> {
+    use crate::diagnostics::GitAnalyzer;
+    
+    println!("🔍 Outgrep Git Diff Analysis");
+    println!("============================");
+    println!();
+    
+    // Use current directory for analysis
+    let current_dir = std::path::Path::new(".");
+    
+    // Initialize Git analyzer to get changed files
+    let git_analyzer = GitAnalyzer::new(current_dir);
+    let git_status = git_analyzer.get_status_for_cwd().unwrap_or_default();
+    let git_diagnostics = git_analyzer.get_diagnostics().ok();
+    
+    if git_status.is_empty() {
+        println!("🟢 No changes detected in current directory.");
+        return Ok(ExitCode::from(0));
+    }
+    
+    // Display git status summary
+    if let Some(git_diagnostics) = git_diagnostics {
+        println!("🔗 Git Status: {}", git_analyzer.diagnostics_summary(&git_diagnostics));
+        println!();
+    }
+    
+    // Show diffs for all changed files (excluding lock files)
+    let mut diff_count = 0;
+    for (relative_path, status) in &git_status {
+        // Skip lock files
+        if let Some(file_name) = relative_path.file_name().and_then(|n| n.to_str()) {
+            match file_name {
+                "Cargo.lock" | "package-lock.json" | "yarn.lock" | "pnpm-lock.yaml" | 
+                "composer.lock" | "Gemfile.lock" | "poetry.lock" | "Pipfile.lock" => {
+                    continue;
+                }
+                _ => {}
+            }
+        }
+        
+        match status {
+            crate::diagnostics::GitFileStatus::Modified | 
+            crate::diagnostics::GitFileStatus::Staged => {
+                let status_icon = match status {
+                    crate::diagnostics::GitFileStatus::Modified => "📝",
+                    crate::diagnostics::GitFileStatus::Staged => "📁",
+                    _ => "📄",
+                };
+                
+                println!("{} {}", status_icon, relative_path.display());
+                
+                // Convert relative path to absolute path for diff
+                let absolute_path = std::env::current_dir()?.join(relative_path);
+                
+                match git_analyzer.get_semantic_diff(&absolute_path) {
+                    Ok(diff) => {
+                        if !diff.trim().is_empty() {
+                            println!("┌─ Diff:");
+                            for line in diff.lines() {
+                                println!("│ {}", line);
+                            }
+                            println!("└─");
+                            diff_count += 1;
+                        } else {
+                            println!("└─ No changes or whitespace only");
+                        }
+                    }
+                    Err(e) => {
+                        println!("└─ Diff Error: {}", e);
+                    }
+                }
+                println!();
+            }
+            _ => {} // Skip untracked and conflicted files for diff
+        }
+    }
+    
+    if diff_count == 0 {
+        println!("🟡 No file diffs to display (files may be untracked or have no changes).");
+    } else {
+        println!("📊 Displayed {} file diff(s)", diff_count);
     }
     
     Ok(ExitCode::from(0))
@@ -777,7 +913,7 @@ async fn analyze_and_watch(args: &HiArgs) -> anyhow::Result<ExitCode> {
     
     // Initialize Git analyzer and get status
     let git_analyzer = GitAnalyzer::new(current_dir);
-    let git_status = git_analyzer.get_status().unwrap_or_default();
+    let git_status = git_analyzer.get_status_for_cwd().unwrap_or_default();
     let git_diagnostics = git_analyzer.get_diagnostics().ok();
     
     // Walk through files and calculate metrics
@@ -790,6 +926,10 @@ async fn analyze_and_watch(args: &HiArgs) -> anyhow::Result<ExitCode> {
     let walker = ignore::WalkBuilder::new(current_dir)
         .hidden(false)
         .git_ignore(true)
+        .git_global(true)
+        .git_exclude(true)
+        .ignore(true)
+        .parents(true)
         .build();
     
     for result in walker {
@@ -807,6 +947,17 @@ async fn analyze_and_watch(args: &HiArgs) -> anyhow::Result<ExitCode> {
         }
         
         let path = entry.path();
+        
+        // Skip common lock files and generated files
+        if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+            match file_name {
+                "Cargo.lock" | "package-lock.json" | "yarn.lock" | "pnpm-lock.yaml" | 
+                "composer.lock" | "Gemfile.lock" | "poetry.lock" | "Pipfile.lock" => {
+                    continue;
+                }
+                _ => {}
+            }
+        }
         
         // Only analyze source files
         if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
@@ -840,6 +991,25 @@ async fn analyze_and_watch(args: &HiArgs) -> anyhow::Result<ExitCode> {
                                 relative_path.display(),
                                 MetricsCalculator::metrics_summary(&metrics)
                             );
+                            
+                            // Show inline diff if file has changes and diff flag is enabled
+                            if args.diff() && matches!(git_status.get(relative_path), Some(crate::diagnostics::GitFileStatus::Modified) | Some(crate::diagnostics::GitFileStatus::Staged)) {
+                                match git_analyzer.get_semantic_diff(path) {
+                                    Ok(diff) => {
+                                        if !diff.trim().is_empty() {
+                                            println!("    ┌─ Diff:");
+                                            for line in diff.lines() {
+                                                println!("    │ {}", line);
+                                            }
+                                            println!("    └─");
+                                        }
+                                    }
+                                    Err(e) => {
+                                        println!("    ┌─ Diff Error: {}", e);
+                                        println!("    └─");
+                                    }
+                                }
+                            }
                         }
                     }
                 }

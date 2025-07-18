@@ -15,10 +15,11 @@
 # --type-add=myproject:*.{custom,ext}
 
 # Project-specific ignore patterns
-# --glob=!build/*
-# --glob=!dist/*
-# --glob=!vendor/*
-# --glob=!*.generated.*
+--glob=!build/*
+--glob=!dist/*
+--glob=!vendor/*
+--glob=!*.generated.*
+--glob=!*.lock
 
 # Language-specific settings for this project
 # --type-add=proto:*.proto
