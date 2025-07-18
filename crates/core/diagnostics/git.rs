@@ -380,25 +380,25 @@ impl GitAnalyzer {
             if !has_changes {
                 has_changes = true;
             } else {
-                output.push_str("...\n");
+                output.push_str("\x1b[90m...\x1b[0m\n"); // Gray separator
             }
             
             for op in &group {
                 for change in diff.iter_changes(op) {
-                    let sign = match change.tag() {
-                        ChangeTag::Delete => "-",
-                        ChangeTag::Insert => "+",
-                        ChangeTag::Equal => " ",
+                    let (sign, color) = match change.tag() {
+                        ChangeTag::Delete => ("-", "\x1b[31m"), // Red for deletions
+                        ChangeTag::Insert => ("+", "\x1b[32m"), // Green for insertions
+                        ChangeTag::Equal => (" ", "\x1b[90m"),  // Gray for context
                     };
                     
                     // Only show context lines (Equal) around changes, not all of them
                     match change.tag() {
                         ChangeTag::Delete | ChangeTag::Insert => {
-                            output.push_str(&format!("{}{}", sign, change));
+                            output.push_str(&format!("{}{}{}\x1b[0m", color, sign, change));
                         }
                         ChangeTag::Equal => {
-                            // Only show context lines, not all equal lines
-                            output.push_str(&format!("{}{}", sign, change));
+                            // Only show context lines, not all equal lines  
+                            output.push_str(&format!("{}{}{}\x1b[0m", color, sign, change));
                         }
                     }
                 }
