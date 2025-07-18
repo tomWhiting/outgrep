@@ -567,7 +567,7 @@ mod tests {
         // This test might fail in CI environments without editors
         // So we just test that it either finds an editor or fails gracefully
         match ConfigManager::detect_editor() {
-            Ok(editor_path) => {
+            Ok((editor_path, _args)) => {
                 assert!(!editor_path.as_os_str().is_empty());
             }
             Err(e) => {

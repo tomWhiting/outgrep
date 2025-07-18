@@ -1,0 +1,29 @@
+# Project-specific outgrep configuration
+# These settings override global defaults for this project
+
+# Project-specific search settings
+# --context=5
+# --semantic
+--semantic-similarity-threshold=0.7
+
+# Semantic search model configuration for this project
+# --semantic-model-path=./project-models     # Local model directory
+# --semantic-model=all-mpnet-base-v2         # Use higher-quality model for this project
+# --semantic-dimensions=768                  # Match model dimensions
+
+# Project-specific file types
+# --type-add=myproject:*.{custom,ext}
+
+# Project-specific ignore patterns
+# --glob=!build/*
+# --glob=!dist/*
+# --glob=!vendor/*
+# --glob=!*.generated.*
+
+# Language-specific settings for this project
+# --type-add=proto:*.proto
+# --type-add=schema:*.graphql
+
+# Performance tuning for large codebases
+# --threads=8
+# --max-filesize=50M
