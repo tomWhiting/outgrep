@@ -47,9 +47,24 @@ impl<T> ParseResult<T> {
 
 /// Parse CLI arguments and convert then to their high level representation.
 pub(crate) fn parse() -> ParseResult<HiArgs> {
-    parse_low().and_then(|low| match HiArgs::from_low_args(low) {
-        Ok(hi) => ParseResult::Ok(hi),
-        Err(err) => ParseResult::Err(err),
+    parse_low().and_then(|low| {
+        // Special handling for analyze mode to bypass pattern validation
+        if low.analyze {
+            // Create a minimal HiArgs for analyze mode
+            let low_with_pattern = LowArgs {
+                patterns: vec![crate::flags::lowargs::PatternSource::Regexp(".*".to_string())],
+                ..low
+            };
+            match HiArgs::from_low_args(low_with_pattern) {
+                Ok(args) => ParseResult::Ok(args),
+                Err(err) => ParseResult::Err(err),
+            }
+        } else {
+            match HiArgs::from_low_args(low) {
+                Ok(hi) => ParseResult::Ok(hi),
+                Err(err) => ParseResult::Err(err),
+            }
+        }
     })
 }
 

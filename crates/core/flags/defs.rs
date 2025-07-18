@@ -62,6 +62,7 @@ pub(super) const FLAGS: &[&dyn Flag] = &[
     &CountMatches,
     &Crlf,
     &Debug,
+    &Analyze,
     &DfaSizeLimit,
     &Encoding,
     &Engine,
@@ -1525,6 +1526,54 @@ fn test_debug() {
 
     let args = parse_low_raw(["--trace", "--debug"]).unwrap();
     assert_eq!(Some(LoggingMode::Debug), args.logging);
+}
+
+/// --analyze
+#[derive(Debug)]
+struct Analyze;
+impl Flag for Analyze {
+    fn is_switch(&self) -> bool {
+        true
+    }
+    fn name_long(&self) -> &'static str {
+        "analyze"
+    }
+    fn doc_category(&self) -> Category {
+        Category::Filter
+    }
+    fn doc_short(&self) -> &'static str {
+        r"Analyze code metrics and enable file watching."
+    }
+    fn doc_long(&self) -> &'static str {
+        r"
+Analyze code metrics and enable file watching for real-time code analysis.
+.sp
+The \flag{analyze} flag enables outgrep's code intelligence features,
+including file metrics calculation and real-time file system monitoring.
+When this flag is enabled, outgrep will:
+.sp
+- Calculate code metrics (lines of code, comments, complexity)
+- Monitor file changes in real-time
+- Display comprehensive code analysis information
+.sp
+This mode is useful for understanding codebase structure and monitoring
+development activity. Metrics are calculated for multiple programming
+languages including Rust, JavaScript, Python, Java, Go, and others.
+"
+    }
+    fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+        assert!(v.unwrap_switch(), "--analyze can only be enabled");
+        args.analyze = true;
+        Ok(())
+    }
+}
+#[cfg(test)]
+#[test]
+fn test_analyze() {
+    let args = parse_low_raw(None::<&str>).unwrap();
+    assert_eq!(false, args.analyze);
+    let args = parse_low_raw(["--analyze"]).unwrap();
+    assert_eq!(true, args.analyze);
 }
 
 /// --dfa-size-limit

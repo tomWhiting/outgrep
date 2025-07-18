@@ -45,6 +45,7 @@ pub(crate) struct HiArgs {
     context: ContextMode,
     context_separator: ContextSeparator,
     crlf: bool,
+    analyze: bool,
     dfa_size_limit: Option<usize>,
     encoding: EncodingMode,
     engine: EngineChoice,
@@ -272,6 +273,7 @@ impl HiArgs {
             context: low.context,
             context_separator: low.context_separator,
             crlf: low.crlf,
+            analyze: low.analyze,
             dfa_size_limit: low.dfa_size_limit,
             encoding: low.encoding,
             engine: low.engine,
@@ -785,6 +787,11 @@ impl HiArgs {
     /// Return whether semantic search is enabled.
     pub(crate) fn semantic(&self) -> bool {
         self.semantic
+    }
+
+    /// Return whether analyze mode is enabled.
+    pub(crate) fn analyze(&self) -> bool {
+        self.analyze
     }
 
     /// Return the first search pattern, if any.

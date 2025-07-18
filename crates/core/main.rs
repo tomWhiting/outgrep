@@ -84,14 +84,18 @@ fn run(result: crate::flags::ParseResult<HiArgs>) -> anyhow::Result<ExitCode> {
         ParseResult::Special(mode) => return special(mode),
         ParseResult::Ok(args) => args,
     };
-    let matched = match args.mode() {
-        Mode::Search(_) if !args.matches_possible() => false,
-        Mode::Search(mode) if args.threads() == 1 => search(&args, mode)?,
-        Mode::Search(mode) => search_parallel(&args, mode)?,
-        Mode::Files if args.threads() == 1 => files(&args)?,
-        Mode::Files => files_parallel(&args)?,
-        Mode::Types => return types(&args),
-        Mode::Generate(mode) => return generate(mode),
+    let matched = if args.analyze() {
+        return tokio::runtime::Runtime::new()?.block_on(analyze(&args));
+    } else {
+        match args.mode() {
+            Mode::Search(_) if !args.matches_possible() => false,
+            Mode::Search(mode) if args.threads() == 1 => search(&args, mode)?,
+            Mode::Search(mode) => search_parallel(&args, mode)?,
+            Mode::Files if args.threads() == 1 => files(&args)?,
+            Mode::Files => files_parallel(&args)?,
+            Mode::Types => return types(&args),
+            Mode::Generate(mode) => return generate(mode),
+        }
     };
     Ok(if matched && (args.quiet() || !messages::errored()) {
         ExitCode::from(0)
@@ -533,5 +537,130 @@ fn print_stats<W: Write>(
             search_time = stats.elapsed().as_secs_f64(),
             process_time = elapsed.as_secs_f64(),
         )
+    }
+}
+
+/// Entry point for analyze mode.
+///
+/// This function demonstrates the file watching and metrics capabilities
+/// by analyzing the current directory and optionally watching for changes.
+async fn analyze(args: &HiArgs) -> anyhow::Result<ExitCode> {
+    use crate::diagnostics::{FileWatcher, MetricsCalculator};
+    use std::io::Write;
+    use std::time::Duration;
+    
+    println!("🔍 Outgrep Code Intelligence Analysis");
+    println!("=====================================");
+    println!();
+    
+    // Use current directory for analysis
+    let current_dir = std::path::Path::new(".");
+    
+    println!("📁 Analyzing directory: {}", current_dir.display());
+    println!();
+    
+    // Walk through files and calculate metrics
+    let mut total_files = 0;
+    let mut total_loc = 0;
+    let mut total_comments = 0;
+    let mut total_functions = 0;
+    let mut total_complexity = 0;
+    
+    let walker = ignore::WalkBuilder::new(current_dir)
+        .hidden(false)
+        .git_ignore(true)
+        .build();
+    
+    for result in walker {
+        let entry = match result {
+            Ok(entry) => entry,
+            Err(err) => {
+                eprintln!("Warning: {}", err);
+                continue;
+            }
+        };
+        
+        // Skip directories
+        if entry.file_type().map_or(false, |ft| ft.is_dir()) {
+            continue;
+        }
+        
+        let path = entry.path();
+        
+        // Only analyze source files
+        if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+            match ext {
+                "rs" | "js" | "jsx" | "ts" | "tsx" | "py" | "java" | "go" | 
+                "c" | "cpp" | "cc" | "cxx" | "h" | "hpp" | "php" | "rb" | 
+                "cs" | "swift" => {
+                    // Calculate metrics for this file
+                    if let Ok(content) = std::fs::read_to_string(path) {
+                        if let Ok(metrics) = MetricsCalculator::calculate_metrics(path, &content) {
+                            total_files += 1;
+                            total_loc += metrics.lines_of_code;
+                            total_comments += metrics.comment_lines;
+                            total_functions += metrics.function_count as u64;
+                            total_complexity += metrics.cyclomatic_complexity as u64;
+                            
+                            println!("📄 {}: {}", 
+                                path.strip_prefix(current_dir).unwrap_or(path).display(),
+                                MetricsCalculator::metrics_summary(&metrics)
+                            );
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    
+    println!();
+    println!("📊 Summary Statistics:");
+    println!("  Files analyzed: {}", total_files);
+    println!("  Total lines of code: {}", total_loc);
+    println!("  Total comment lines: {}", total_comments);
+    println!("  Total functions: {}", total_functions);
+    println!("  Average complexity: {:.1}", 
+        if total_functions > 0 { total_complexity as f64 / total_functions as f64 } else { 0.0 }
+    );
+    println!();
+    
+    // Initialize file watcher
+    println!("👀 Starting file watcher (press Ctrl+C to exit)...");
+    println!("Watching for changes in: {}", current_dir.display());
+    println!();
+    
+    let mut watcher = FileWatcher::new()?;
+    watcher.watch(current_dir)?;
+    
+    // Watch for file changes
+    loop {
+        if let Some(event) = watcher.next_event_timeout(Duration::from_secs(1)).await {
+            match event {
+                crate::diagnostics::FileChangeEvent::Created(path) => {
+                    println!("✅ File created: {}", path.display());
+                    if let Ok(content) = std::fs::read_to_string(&path) {
+                        if let Ok(metrics) = MetricsCalculator::calculate_metrics(&path, &content) {
+                            println!("   {}", MetricsCalculator::metrics_summary(&metrics));
+                        }
+                    }
+                }
+                crate::diagnostics::FileChangeEvent::Modified(path) => {
+                    println!("📝 File modified: {}", path.display());
+                    if let Ok(content) = std::fs::read_to_string(&path) {
+                        if let Ok(metrics) = MetricsCalculator::calculate_metrics(&path, &content) {
+                            println!("   {}", MetricsCalculator::metrics_summary(&metrics));
+                        }
+                    }
+                }
+                crate::diagnostics::FileChangeEvent::Deleted(path) => {
+                    println!("🗑️  File deleted: {}", path.display());
+                }
+                crate::diagnostics::FileChangeEvent::Renamed { from, to } => {
+                    println!("🔄 File renamed: {} -> {}", from.display(), to.display());
+                }
+            }
+            std::io::stdout().flush().unwrap();
+        }
     }
 }
