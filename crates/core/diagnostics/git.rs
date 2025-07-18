@@ -373,14 +373,36 @@ impl GitAnalyzer {
         
         let diff = TextDiff::from_lines(old_content, new_content);
         let mut output = String::new();
+        let mut has_changes = false;
         
-        for change in diff.iter_all_changes() {
-            let sign = match change.tag() {
-                ChangeTag::Delete => "-",
-                ChangeTag::Insert => "+",
-                ChangeTag::Equal => " ",
-            };
-            output.push_str(&format!("{}{}", sign, change));
+        // Group changes into hunks with context
+        for group in diff.grouped_ops(3) {
+            if !has_changes {
+                has_changes = true;
+            } else {
+                output.push_str("...\n");
+            }
+            
+            for op in &group {
+                for change in diff.iter_changes(op) {
+                    let sign = match change.tag() {
+                        ChangeTag::Delete => "-",
+                        ChangeTag::Insert => "+",
+                        ChangeTag::Equal => " ",
+                    };
+                    
+                    // Only show context lines (Equal) around changes, not all of them
+                    match change.tag() {
+                        ChangeTag::Delete | ChangeTag::Insert => {
+                            output.push_str(&format!("{}{}", sign, change));
+                        }
+                        ChangeTag::Equal => {
+                            // Only show context lines, not all equal lines
+                            output.push_str(&format!("{}{}", sign, change));
+                        }
+                    }
+                }
+            }
         }
         
         Ok(output)
