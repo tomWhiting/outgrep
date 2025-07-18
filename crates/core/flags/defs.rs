@@ -63,6 +63,7 @@ pub(super) const FLAGS: &[&dyn Flag] = &[
     &Crlf,
     &Debug,
     &Analyze,
+    &Watch,
     &DfaSizeLimit,
     &Encoding,
     &Engine,
@@ -1542,22 +1543,27 @@ impl Flag for Analyze {
         Category::Filter
     }
     fn doc_short(&self) -> &'static str {
-        r"Analyze code metrics and enable file watching."
+        r"Analyze code metrics for the current directory."
     }
     fn doc_long(&self) -> &'static str {
         r"
-Analyze code metrics and enable file watching for real-time code analysis.
+Analyze code metrics for the current directory.
 .sp
-The \flag{analyze} flag enables outgrep's code intelligence features,
-including file metrics calculation and real-time file system monitoring.
-When this flag is enabled, outgrep will:
+The \flag{analyze} flag enables outgrep's code intelligence analysis,
+performing a one-time scan of the codebase to calculate and display
+comprehensive metrics and Git repository information.
 .sp
-- Calculate code metrics (lines of code, comments, complexity)
-- Monitor file changes in real-time
-- Display comprehensive code analysis information
+Features include:
 .sp
-This mode is useful for understanding codebase structure and monitoring
-development activity. Metrics are calculated for multiple programming
+- Calculate lines of code, comments, and complexity metrics
+- Detect and analyze multiple programming languages
+- Display Git repository status and statistics
+- Show file-by-file analysis results
+- Display comprehensive summary statistics
+.sp
+This mode is useful for understanding codebase structure and getting
+a snapshot of project metrics. For real-time monitoring, combine with
+the \flag{watch} flag. Metrics are calculated for multiple programming
 languages including Rust, JavaScript, Python, Java, Go, and others.
 "
     }
@@ -1574,6 +1580,62 @@ fn test_analyze() {
     assert_eq!(false, args.analyze);
     let args = parse_low_raw(["--analyze"]).unwrap();
     assert_eq!(true, args.analyze);
+}
+
+/// --watch
+#[derive(Debug)]
+struct Watch;
+impl Flag for Watch {
+    fn is_switch(&self) -> bool {
+        true
+    }
+    fn name_long(&self) -> &'static str {
+        "watch"
+    }
+    fn doc_category(&self) -> Category {
+        Category::Filter
+    }
+    fn doc_short(&self) -> &'static str {
+        r"Enable real-time file watching for live code analysis."
+    }
+    fn doc_long(&self) -> &'static str {
+        r"
+Enable real-time file watching for live code analysis.
+.sp
+The \flag{watch} flag enables outgrep's file watching capabilities,
+monitoring the current directory for file changes and providing
+real-time updates on code metrics as files are created, modified,
+or deleted.
+.sp
+This flag is typically used in combination with \flag{analyze} to
+provide live monitoring of codebase changes during development.
+When enabled, outgrep will continue running and display updates
+for any file system changes until interrupted (Ctrl+C).
+.sp
+Features include:
+.sp
+- Real-time file change detection
+- Live code metrics updates
+- Support for create, modify, delete, and rename operations
+- Intelligent filtering of relevant source files
+.sp
+This mode is useful for monitoring development activity and
+understanding how code changes impact overall project metrics.
+"
+    }
+    fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+        assert!(v.unwrap_switch(), "--watch can only be enabled");
+        args.watch = true;
+        Ok(())
+    }
+}
+#[cfg(test)]
+#[test]
+fn test_watch() {
+    let args = parse_low_raw(None::<&str>).unwrap();
+    assert_eq!(false, args.watch);
+    let args = parse_low_raw(["--watch"]).unwrap();
+    assert_eq!(true, args.watch);
 }
 
 /// --dfa-size-limit
