@@ -1,24 +1,29 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use crate::diagnostics::types::{TreeNode, DirectoryNode, FileNode, GitFileStatus, CodeMetrics};
+use crate::diagnostics::types::{TreeNode, DirectoryNode, FileNode, GitFileStatus, FileDiagnostics};
 use crate::diagnostics::{MetricsCalculator, GitAnalyzer};
 
 /// Builder for constructing directory trees with metrics and git information
 pub struct TreeBuilder {
     git_analyzer: GitAnalyzer,
     git_status: HashMap<PathBuf, GitFileStatus>,
+    workspace_diagnostics: HashMap<PathBuf, FileDiagnostics>,
 }
 
 impl TreeBuilder {
     /// Create a new tree builder for the given directory
     pub fn new<P: AsRef<Path>>(path: P) -> Self {
-        let git_analyzer = GitAnalyzer::new(path);
+        let git_analyzer = GitAnalyzer::new(&path);
         let git_status = git_analyzer.get_status_for_cwd().unwrap_or_default();
+        
+        // Run workspace-wide diagnostics once
+        let workspace_diagnostics = Self::run_workspace_diagnostics(&path);
         
         Self {
             git_analyzer,
             git_status,
+            workspace_diagnostics,
         }
     }
     
@@ -181,6 +186,11 @@ impl TreeBuilder {
             }
         }
         
+        // Get cached diagnostics for this file
+        if self.is_source_file(full_path) {
+            file_node.diagnostics = self.get_diagnostics_for_file(full_path);
+        }
+        
         // Set last modified time
         if let Ok(metadata) = std::fs::metadata(full_path) {
             file_node.last_modified = metadata.modified().ok();
@@ -263,6 +273,158 @@ impl TreeBuilder {
             false
         }
     }
+    
+    /// Run workspace-wide diagnostics once and cache results per file
+    fn run_workspace_diagnostics<P: AsRef<Path>>(path: P) -> HashMap<PathBuf, FileDiagnostics> {
+        let mut diagnostics_map = HashMap::new();
+        
+        // Check if we're in a Rust workspace
+        if let Some(project_root) = Self::find_rust_project_root(path.as_ref()) {
+            if let Some(workspace_diagnostics) = Self::run_rust_workspace_diagnostics(&project_root) {
+                diagnostics_map.extend(workspace_diagnostics);
+            }
+        }
+        
+        // TODO: Add other language workspace diagnostics here
+        // - TypeScript: run tsc --noEmit on workspace
+        // - Python: run mypy on workspace 
+        // - Go: run go vet ./...
+        
+        diagnostics_map
+    }
+    
+    /// Find Rust project root by looking for Cargo.toml
+    fn find_rust_project_root(start_path: &Path) -> Option<PathBuf> {
+        let mut current = start_path;
+        
+        loop {
+            if current.join("Cargo.toml").exists() {
+                return Some(current.to_path_buf());
+            }
+            
+            current = current.parent()?;
+        }
+    }
+    
+    /// Run Rust diagnostics for entire workspace and return per-file results
+    fn run_rust_workspace_diagnostics(project_root: &Path) -> Option<HashMap<PathBuf, FileDiagnostics>> {
+        use std::process::Command;
+        
+        let output = Command::new("cargo")
+            .arg("check")
+            .arg("--message-format=json")
+            .arg("--quiet")
+            .current_dir(project_root)
+            .output()
+            .ok()?;
+
+        Self::parse_rust_workspace_diagnostics(&output.stdout, project_root)
+    }
+    
+    /// Parse Rust cargo check JSON output and organize by file
+    fn parse_rust_workspace_diagnostics(output: &[u8], project_root: &Path) -> Option<HashMap<PathBuf, FileDiagnostics>> {
+        let output_str = String::from_utf8_lossy(output);
+        let mut diagnostics_by_file: HashMap<PathBuf, FileDiagnostics> = HashMap::new();
+
+        for line in output_str.lines() {
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(line) {
+                if let Some(message) = json.get("message") {
+                    if let Some(spans) = message.get("spans").and_then(|s| s.as_array()) {
+                        for span in spans {
+                            if let Some((file_path, diagnostic)) = Self::parse_rust_workspace_span(span, project_root) {
+                                diagnostics_by_file
+                                    .entry(file_path)
+                                    .or_insert_with(FileDiagnostics::default)
+                                    .add_diagnostic(diagnostic);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if diagnostics_by_file.is_empty() {
+            None
+        } else {
+            Some(diagnostics_by_file)
+        }
+    }
+    
+    /// Parse a single Rust span for workspace diagnostics
+    fn parse_rust_workspace_span(span: &serde_json::Value, project_root: &Path) -> Option<(PathBuf, crate::diagnostics::types::CompilerDiagnostic)> {
+        let span_file = span.get("file_name")?.as_str()?;
+        
+        // Convert relative path to absolute path from project root
+        let file_path = if Path::new(span_file).is_absolute() {
+            PathBuf::from(span_file)
+        } else {
+            project_root.join(span_file)
+        };
+
+        let line = span.get("line_start")?.as_u64()? as u32;
+        let column = span.get("column_start")?.as_u64()? as u32;
+        let length = span.get("column_end")
+            .and_then(|end| end.as_u64())
+            .map(|end| (end as u32).saturating_sub(column));
+
+        let message = span.get("label")?.as_str()?.to_string();
+        
+        let diagnostic = crate::diagnostics::types::CompilerDiagnostic {
+            severity: crate::diagnostics::types::DiagnosticSeverity::Warning, // Most cargo check output are warnings
+            message,
+            code: None,
+            location: crate::diagnostics::types::DiagnosticLocation { line, column, length },
+            file_path: file_path.clone(),
+            suggestions: Vec::new(),
+        };
+        
+        Some((file_path, diagnostic))
+    }
+    
+    /// Get diagnostics for a file with robust path matching
+    fn get_diagnostics_for_file(&self, file_path: &Path) -> Option<FileDiagnostics> {
+        // Try exact path match first
+        if let Some(diagnostics) = self.workspace_diagnostics.get(file_path) {
+            return Some(diagnostics.clone());
+        }
+        
+        // Try all stored paths to find a match
+        for (stored_path, diagnostics) in &self.workspace_diagnostics {
+            // Check if paths point to the same file
+            if Self::paths_match(file_path, stored_path) {
+                return Some(diagnostics.clone());
+            }
+        }
+        
+        None
+    }
+    
+    /// Check if two paths refer to the same file
+    fn paths_match(path1: &Path, path2: &Path) -> bool {
+        // Try exact match
+        if path1 == path2 {
+            return true;
+        }
+        
+        // Try canonicalized paths
+        if let (Ok(canon1), Ok(canon2)) = (path1.canonicalize(), path2.canonicalize()) {
+            if canon1 == canon2 {
+                return true;
+            }
+        }
+        
+        // Try file name match (last resort)
+        if let (Some(name1), Some(name2)) = (path1.file_name(), path2.file_name()) {
+            if name1 == name2 {
+                // Check if the path endings match (same directory structure)
+                let components1: Vec<_> = path1.components().rev().take(3).collect();
+                let components2: Vec<_> = path2.components().rev().take(3).collect();
+                return components1 == components2;
+            }
+        }
+        
+        false
+    }
 }
 
 /// Display a tree structure with proper formatting
@@ -274,7 +436,9 @@ pub struct TreeDisplayOptions {
     pub show_metrics: bool,
     pub show_diffs: bool,
     pub show_analysis: bool,
+    pub show_diagnostics: bool,
     pub truncate_diffs: bool,
+    pub output_json: bool,
     pub git_status: std::collections::HashMap<std::path::PathBuf, crate::diagnostics::GitFileStatus>,
 }
 
@@ -290,7 +454,19 @@ impl TreeDisplay {
     
     /// Display a tree node with enhanced options for file-centric information
     pub fn display_tree_with_options(node: &TreeNode, options: &TreeDisplayOptions) {
-        Self::display_node_with_options(node, "", true, options);
+        if options.output_json {
+            Self::output_json(node, options);
+        } else {
+            Self::display_node_with_options(node, "", true, options);
+        }
+    }
+    
+    /// Output tree data as JSON
+    pub fn output_json(node: &TreeNode, _options: &TreeDisplayOptions) {
+        match serde_json::to_string_pretty(node) {
+            Ok(json) => println!("{}", json),
+            Err(e) => eprintln!("Error serializing tree to JSON: {}", e),
+        }
     }
     
     /// Recursively display a tree node
@@ -412,11 +588,57 @@ impl TreeDisplay {
         // Show analysis information if requested
         if options.show_analysis && file.metrics.is_some() {
             if let Some(metrics) = &file.metrics {
-                println!("{}└─ 📊 Analysis:", file_prefix);
-                println!("{}   • Lines of code: {}", file_prefix, metrics.lines_of_code);
-                println!("{}   • Comment lines: {}", file_prefix, metrics.comment_lines);
-                println!("{}   • Functions: {}", file_prefix, metrics.function_count);
-                println!("{}   • Complexity: {}", file_prefix, metrics.cyclomatic_complexity);
+                println!("{}├─ 📊 Analysis:", file_prefix);
+                println!("{}│  • Lines of code: {}", file_prefix, metrics.lines_of_code);
+                println!("{}│  • Comment lines: {}", file_prefix, metrics.comment_lines);
+                println!("{}│  • Functions: {}", file_prefix, metrics.function_count);
+                println!("{}│  • Complexity: {}", file_prefix, metrics.cyclomatic_complexity);
+            }
+        }
+        
+        // Show compiler diagnostics if requested
+        if options.show_diagnostics && file.diagnostics.is_some() {
+            if let Some(diagnostics) = &file.diagnostics {
+                let has_other_sections = options.show_analysis && file.metrics.is_some();
+                let connector = if has_other_sections { "├─" } else { "└─" };
+                
+                if diagnostics.total_count() > 0 {
+                    println!("{}{} 🔍 Diagnostics ({} issues):", file_prefix, connector, diagnostics.total_count());
+                    
+                    // Show errors
+                    for error in &diagnostics.errors {
+                        println!("{}│  ❌ Line {}: {}", file_prefix, error.location.line, error.message);
+                        if let Some(code) = &error.code {
+                            println!("{}│     Code: {}", file_prefix, code);
+                        }
+                    }
+                    
+                    // Show warnings
+                    for warning in &diagnostics.warnings {
+                        println!("{}│  ⚠️  Line {}: {}", file_prefix, warning.location.line, warning.message);
+                        if let Some(code) = &warning.code {
+                            println!("{}│     Code: {}", file_prefix, code);
+                        }
+                    }
+                    
+                    // Show info messages
+                    for info in &diagnostics.infos {
+                        println!("{}│  ℹ️  Line {}: {}", file_prefix, info.location.line, info.message);
+                        if let Some(code) = &info.code {
+                            println!("{}│     Code: {}", file_prefix, code);
+                        }
+                    }
+                    
+                    // Show hints
+                    for hint in &diagnostics.hints {
+                        println!("{}│  💡 Line {}: {}", file_prefix, hint.location.line, hint.message);
+                        if let Some(code) = &hint.code {
+                            println!("{}│     Code: {}", file_prefix, code);
+                        }
+                    }
+                } else {
+                    println!("{}{} ✅ No diagnostics issues", file_prefix, connector);
+                }
             }
         }
     }

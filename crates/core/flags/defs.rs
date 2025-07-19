@@ -65,6 +65,7 @@ pub(super) const FLAGS: &[&dyn Flag] = &[
     &Analyze,
     &Watch,
     &Diff,
+    &Diagnostics,
     &DfaSizeLimit,
     &Encoding,
     &Engine,
@@ -90,6 +91,7 @@ pub(super) const FLAGS: &[&dyn Flag] = &[
     &IncludeZero,
     &InvertMatch,
     &JSON,
+    &JSONOutput,
     &LineBuffered,
     &LineNumber,
     &LineNumberNo,
@@ -144,7 +146,9 @@ pub(super) const FLAGS: &[&dyn Flag] = &[
     &Text,
     &Threads,
     &Trace,
+    &Tree,
     &Trim,
+    &TruncateDiffs,
     &Type,
     &TypeNot,
     &TypeAdd,
@@ -1692,6 +1696,47 @@ fn test_diff() {
     assert_eq!(false, args.diff);
     let args = parse_low_raw(["--diff"]).unwrap();
     assert_eq!(true, args.diff);
+}
+
+/// --diagnostics
+#[derive(Debug)]
+struct Diagnostics;
+impl Flag for Diagnostics {
+    fn is_switch(&self) -> bool {
+        true
+    }
+    fn name_long(&self) -> &'static str {
+        "diagnostics"
+    }
+    fn doc_category(&self) -> Category {
+        Category::Output
+    }
+    fn doc_short(&self) -> &'static str {
+        r"Show compiler diagnostics for source files."
+    }
+    fn doc_long(&self) -> &'static str {
+        r"
+Show compiler diagnostics for source files including errors, warnings, 
+and hints from language-specific tools.
+
+This flag enables compiler and linter integration to show diagnostic
+information for each source file in the tree. Supported tools include:
+
+• Rust: cargo check
+• TypeScript/JavaScript: tsc, eslint
+• Python: mypy, flake8
+• Go: go vet
+• Java: javac
+
+Diagnostics are displayed with appropriate severity indicators and 
+include line numbers, error codes, and detailed messages.
+"
+    }
+    fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+        assert!(v.unwrap_switch(), "--diagnostics has no negation");
+        args.diagnostics = true;
+        Ok(())
+    }
 }
 
 /// --dfa-size-limit
@@ -7267,6 +7312,37 @@ fn test_trace() {
     assert_eq!(Some(LoggingMode::Trace), args.logging);
 }
 
+/// --tree
+#[derive(Debug)]
+struct Tree;
+impl Flag for Tree {
+    fn is_switch(&self) -> bool {
+        true
+    }
+    fn name_long(&self) -> &'static str {
+        "tree"
+    }
+    fn doc_category(&self) -> Category {
+        Category::Output
+    }
+    fn doc_short(&self) -> &'static str {
+        r"Show directory tree structure with files."
+    }
+    fn doc_long(&self) -> &'static str {
+        r"Show directory tree structure with files and their information. This flag
+displays a hierarchical view of the directory structure, showing files and
+directories in a tree format. Can be combined with --analyze to show code
+metrics, or with --diff to show git changes integrated within the tree.
+The tree display is file-centric, organizing all information around
+individual files rather than showing separate sections."
+    }
+    fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+        assert!(v.unwrap_switch(), "--tree has no negation");
+        args.tree = true;
+        Ok(())
+    }
+}
+
 /// --trim
 #[derive(Debug)]
 struct Trim;
@@ -7296,6 +7372,36 @@ removed.
 
     fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
         args.trim = v.unwrap_switch();
+        Ok(())
+    }
+}
+
+/// --truncate-diffs
+#[derive(Debug)]
+struct TruncateDiffs;
+impl Flag for TruncateDiffs {
+    fn is_switch(&self) -> bool {
+        true
+    }
+    fn name_long(&self) -> &'static str {
+        "truncate-diffs"
+    }
+    fn doc_category(&self) -> Category {
+        Category::Output
+    }
+    fn doc_short(&self) -> &'static str {
+        r"Truncate long diff outputs in tree mode."
+    }
+    fn doc_long(&self) -> &'static str {
+        r"
+When used with --tree --diff, truncate long diff outputs to show only the
+first 15 lines for readability. By default, full diffs are shown. This flag
+is only effective when used in combination with both --tree and --diff flags.
+"
+    }
+    fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+        assert!(v.unwrap_switch(), "--truncate-diffs has no negation");
+        args.truncate_diffs = true;
         Ok(())
     }
 }
@@ -7855,6 +7961,45 @@ fn test_vimgrep() {
 
     let args = parse_low_raw(["--vimgrep"]).unwrap();
     assert_eq!(true, args.vimgrep);
+}
+
+/// --json-output
+#[derive(Debug)]
+struct JSONOutput;
+impl Flag for JSONOutput {
+    fn is_switch(&self) -> bool {
+        true
+    }
+    fn name_long(&self) -> &'static str {
+        "json-output"
+    }
+    fn doc_category(&self) -> Category {
+        Category::Output
+    }
+    fn doc_short(&self) -> &'static str {
+        r"Output tree data as JSON for graph visualizations."
+    }
+    fn doc_long(&self) -> &'static str {
+        r"
+Output tree data as JSON instead of human-readable format. This enables
+integration with graph visualization tools and external analysis systems.
+
+The JSON output includes complete tree structure with:
+• File and directory hierarchy
+• Git status information
+• Code metrics for each file
+• Compiler diagnostics
+• Diff information
+
+This format is ideal for feeding into graph visualization libraries,
+creating interactive tree views, or performing programmatic analysis.
+"
+    }
+    fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+        assert!(v.unwrap_switch(), "--json-output has no negation");
+        args.json_output = true;
+        Ok(())
+    }
 }
 
 /// --with-filename

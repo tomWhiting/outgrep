@@ -90,6 +90,10 @@ fn run(result: crate::flags::ParseResult<HiArgs>) -> anyhow::Result<ExitCode> {
         return tokio::runtime::Runtime::new()?.block_on(analyze(&args));
     } else if args.watch() {
         return tokio::runtime::Runtime::new()?.block_on(watch(&args));
+    } else if args.diff() && args.tree() {
+        return tokio::runtime::Runtime::new()?.block_on(tree_with_diff(&args));
+    } else if args.tree() {
+        return tokio::runtime::Runtime::new()?.block_on(tree_only(&args));
     } else if args.diff() {
         return tokio::runtime::Runtime::new()?.block_on(diff_only(&args));
     } else {
@@ -804,6 +808,120 @@ async fn diff_only(args: &HiArgs) -> anyhow::Result<ExitCode> {
         println!("🟡 No file diffs to display (files may be untracked or have no changes).");
     } else {
         println!("📊 Displayed {} file diff(s)", diff_count);
+    }
+    
+    Ok(ExitCode::from(0))
+}
+
+/// Entry point for standalone tree mode.
+async fn tree_only(args: &HiArgs) -> anyhow::Result<ExitCode> {
+    use crate::diagnostics::{GitAnalyzer, TreeBuilder, TreeDisplay, TreeDisplayOptions};
+    
+    println!("🌳 Outgrep Tree View");
+    println!("===================");
+    println!();
+    
+    // For tree mode, use current directory by default
+    let root_path_buf = std::path::PathBuf::from(".");
+    
+    // Initialize Git analyzer for git status (optional)
+    let git_analyzer = GitAnalyzer::new(&root_path_buf);
+    let git_status = git_analyzer.get_status_for_cwd().unwrap_or_default();
+    
+    // Display git status summary if available
+    if !git_status.is_empty() {
+        let git_diagnostics = git_analyzer.get_diagnostics().ok();
+        if let Some(git_diagnostics) = git_diagnostics {
+            println!("🔗 Git Status: {}", git_analyzer.diagnostics_summary(&git_diagnostics));
+            println!();
+        }
+    }
+    
+    // Build and display tree
+    let tree_builder = TreeBuilder::new(&root_path_buf);
+    match tree_builder.build_tree(&root_path_buf) {
+        Ok(tree) => {
+            let options = TreeDisplayOptions {
+                show_metrics: false,
+                show_diffs: false,
+                show_analysis: false,
+                show_diagnostics: args.diagnostics(),
+                truncate_diffs: args.truncate_diffs(),
+                output_json: args.json_output(),
+                git_status: git_status.clone(),
+            };
+            
+            if args.json_output() {
+                TreeDisplay::output_json(&tree, &options);
+            } else {
+                TreeDisplay::display_tree_with_options(&tree, &options);
+            }
+        }
+        Err(e) => {
+            eprintln!("Error building tree: {}", e);
+            return Ok(ExitCode::from(1));
+        }
+    }
+    
+    Ok(ExitCode::from(0))
+}
+
+/// Entry point for tree mode with diff integration.
+async fn tree_with_diff(args: &HiArgs) -> anyhow::Result<ExitCode> {
+    use crate::diagnostics::{GitAnalyzer, TreeBuilder, TreeDisplay, TreeDisplayOptions};
+    
+    println!("🔍 Outgrep Git Diff Analysis");
+    println!("============================");
+    println!();
+    
+    // Extract path from command line arguments
+    let root_path_buf = std::env::args_os()
+        .last()
+        .and_then(|last_arg| {
+            let path_str = last_arg.to_string_lossy();
+            if path_str.starts_with('-') || path_str == "og" {
+                None
+            } else {
+                Some(std::path::PathBuf::from(path_str.as_ref()))
+            }
+        })
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+    
+    // Initialize Git analyzer and tree builder
+    let git_analyzer = GitAnalyzer::new(&root_path_buf);
+    let git_status = git_analyzer.get_status_for_cwd().unwrap_or_default();
+    let git_diagnostics = git_analyzer.get_diagnostics().ok();
+    
+    // Display git status summary
+    if let Some(git_diagnostics) = git_diagnostics {
+        println!("🔗 Git Status: {}", git_analyzer.diagnostics_summary(&git_diagnostics));
+        println!();
+    }
+    
+    println!("🌳 Directory Tree");
+    println!("=================");
+    println!();
+    
+    // Build and display tree with diff information
+    let tree_builder = TreeBuilder::new(&root_path_buf);
+    match tree_builder.build_tree(&root_path_buf) {
+        Ok(tree) => {
+            let options = TreeDisplayOptions {
+                show_metrics: false,
+                show_diffs: true,
+                show_analysis: false,
+                show_diagnostics: args.diagnostics(),
+                truncate_diffs: args.truncate_diffs(),
+                output_json: args.json_output(),
+                git_status: git_status.clone(),
+            };
+            
+            TreeDisplay::display_tree_with_options(&tree, &options);
+        }
+        Err(e) => {
+            eprintln!("Error building tree: {}", e);
+            return Ok(ExitCode::from(1));
+        }
     }
     
     Ok(ExitCode::from(0))

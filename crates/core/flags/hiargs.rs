@@ -48,6 +48,10 @@ pub(crate) struct HiArgs {
     analyze: bool,
     watch: bool,
     diff: bool,
+    tree: bool,
+    truncate_diffs: bool,
+    diagnostics: bool,
+    json_output: bool,
     dfa_size_limit: Option<usize>,
     encoding: EncodingMode,
     engine: EngineChoice,
@@ -278,6 +282,10 @@ impl HiArgs {
             analyze: low.analyze,
             watch: low.watch,
             diff: low.diff,
+            tree: low.tree,
+            truncate_diffs: low.truncate_diffs,
+            diagnostics: low.diagnostics,
+            json_output: low.json_output,
             dfa_size_limit: low.dfa_size_limit,
             encoding: low.encoding,
             engine: low.engine,
@@ -808,6 +816,26 @@ impl HiArgs {
         self.diff
     }
 
+    /// Return whether tree mode is enabled.
+    pub(crate) fn tree(&self) -> bool {
+        self.tree
+    }
+
+    /// Return whether diff truncation is enabled.
+    pub(crate) fn truncate_diffs(&self) -> bool {
+        self.truncate_diffs
+    }
+
+    /// Return whether compiler diagnostics are enabled.
+    pub(crate) fn diagnostics(&self) -> bool {
+        self.diagnostics
+    }
+
+    /// Return whether JSON output is enabled.
+    pub(crate) fn json_output(&self) -> bool {
+        self.json_output
+    }
+
     /// Return the first search pattern, if any.
     pub(crate) fn first_pattern(&self) -> Option<&str> {
         self.patterns.patterns.first().map(|s| s.as_str())
@@ -1058,6 +1086,12 @@ impl Patterns {
         if !matches!(low.mode, Mode::Search(_)) {
             return Ok(Patterns { patterns: vec![] });
         }
+        
+        // Skip pattern validation for tree mode
+        if low.tree {
+            return Ok(Patterns { patterns: vec![] });
+        }
+        
         // If we got nothing from -e/--regexp and -f/--file, then the first
         // positional is a pattern.
         if low.patterns.is_empty() {
