@@ -1271,7 +1271,7 @@ async fn unified_tree_mode(args: &HiArgs) -> anyhow::Result<ExitCode> {
                 };
                 
                 if args.json_output() {
-                    TreeDisplay::output_json(&tree, &options);
+                    output_unified_json(&tree, &options, args, &git_status).await;
                 } else {
                     TreeDisplay::display_tree_with_options(&tree, &options);
                 }
@@ -1444,4 +1444,76 @@ async fn unified_tree_mode(args: &HiArgs) -> anyhow::Result<ExitCode> {
     }
     
     Ok(ExitCode::from(0))
+}
+
+/// Output comprehensive JSON that includes metadata and analysis information
+async fn output_unified_json(
+    tree: &crate::diagnostics::types::TreeNode,
+    options: &crate::diagnostics::TreeDisplayOptions,
+    args: &HiArgs,
+    git_status: &std::collections::HashMap<std::path::PathBuf, crate::diagnostics::GitFileStatus>
+) {
+    use crate::diagnostics::TreeDisplay;
+    
+    // Create the main output structure
+    let mut output = serde_json::Map::new();
+    
+    // Add metadata about the analysis
+    let mut metadata = serde_json::Map::new();
+    metadata.insert("version".to_string(), serde_json::Value::String("1.0".to_string()));
+    metadata.insert("timestamp".to_string(), serde_json::Value::String(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+            .to_string()
+    ));
+    metadata.insert("analysis_type".to_string(), serde_json::Value::String("unified_tree".to_string()));
+    
+    // Add enabled features
+    let mut features = serde_json::Map::new();
+    features.insert("tree_view".to_string(), serde_json::Value::Bool(args.tree()));
+    features.insert("diff_analysis".to_string(), serde_json::Value::Bool(args.diff()));
+    features.insert("code_analysis".to_string(), serde_json::Value::Bool(args.analyze()));
+    features.insert("compiler_diagnostics".to_string(), serde_json::Value::Bool(args.diagnostics()));
+    features.insert("json_output".to_string(), serde_json::Value::Bool(args.json_output()));
+    metadata.insert("enabled_features".to_string(), serde_json::Value::Object(features));
+    
+    // Add Git status summary
+    if !git_status.is_empty() {
+        let mut git_summary = serde_json::Map::new();
+        let mut modified_count = 0;
+        let mut staged_count = 0;
+        let mut untracked_count = 0;
+        let mut conflicted_count = 0;
+        
+        for status in git_status.values() {
+            match status {
+                crate::diagnostics::GitFileStatus::Modified => modified_count += 1,
+                crate::diagnostics::GitFileStatus::Staged => staged_count += 1,
+                crate::diagnostics::GitFileStatus::Untracked => untracked_count += 1,
+                crate::diagnostics::GitFileStatus::Conflicted => conflicted_count += 1,
+            }
+        }
+        
+        git_summary.insert("total_changed_files".to_string(), serde_json::Value::Number(git_status.len().into()));
+        git_summary.insert("modified".to_string(), serde_json::Value::Number(modified_count.into()));
+        git_summary.insert("staged".to_string(), serde_json::Value::Number(staged_count.into()));
+        git_summary.insert("untracked".to_string(), serde_json::Value::Number(untracked_count.into()));
+        git_summary.insert("conflicted".to_string(), serde_json::Value::Number(conflicted_count.into()));
+        
+        metadata.insert("git_summary".to_string(), serde_json::Value::Object(git_summary));
+    }
+    
+    output.insert("metadata".to_string(), serde_json::Value::Object(metadata));
+    
+    // Get the enhanced tree data from TreeDisplay
+    let tree_data = TreeDisplay::create_enhanced_json(tree, options);
+    output.insert("tree".to_string(), tree_data);
+    
+    // Output the complete JSON
+    match serde_json::to_string_pretty(&output) {
+        Ok(json) => println!("{}", json),
+        Err(e) => eprintln!("Error serializing unified JSON: {}", e),
+    }
 }

@@ -487,11 +487,217 @@ impl TreeDisplay {
         }
     }
     
-    /// Output tree data as JSON
-    pub fn output_json(node: &TreeNode, _options: &TreeDisplayOptions) {
-        match serde_json::to_string_pretty(node) {
+    /// Output tree data as JSON with comprehensive analysis data
+    pub fn output_json(node: &TreeNode, options: &TreeDisplayOptions) {
+        let enhanced_json = Self::create_enhanced_json(node, options);
+        match serde_json::to_string_pretty(&enhanced_json) {
             Ok(json) => println!("{}", json),
-            Err(e) => eprintln!("Error serializing tree to JSON: {}", e),
+            Err(e) => eprintln!("Error serializing enhanced tree to JSON: {}", e),
+        }
+    }
+    
+    /// Create enhanced JSON structure that includes all analysis data
+    pub fn create_enhanced_json(node: &TreeNode, options: &TreeDisplayOptions) -> serde_json::Value {
+        match node {
+            TreeNode::Directory(dir) => {
+                let mut dir_obj = serde_json::Map::new();
+                dir_obj.insert("type".to_string(), serde_json::Value::String("directory".to_string()));
+                dir_obj.insert("name".to_string(), serde_json::Value::String(dir.name.clone()));
+                dir_obj.insert("path".to_string(), serde_json::Value::String(dir.path.to_string_lossy().to_string()));
+                
+                // Add git status if available
+                if let Some(status) = &dir.git_status {
+                    dir_obj.insert("git_status".to_string(), serde_json::Value::String(Self::git_status_to_string(status)));
+                }
+                
+                // Add directory statistics if metrics are enabled
+                if options.show_metrics {
+                    let mut stats = serde_json::Map::new();
+                    stats.insert("total_files".to_string(), serde_json::Value::Number(dir.stats.total_files.into()));
+                    stats.insert("total_directories".to_string(), serde_json::Value::Number(dir.stats.total_directories.into()));
+                    stats.insert("total_loc".to_string(), serde_json::Value::Number(dir.stats.total_loc.into()));
+                    stats.insert("total_comments".to_string(), serde_json::Value::Number(dir.stats.total_comments.into()));
+                    stats.insert("total_functions".to_string(), serde_json::Value::Number(dir.stats.total_functions.into()));
+                    stats.insert("total_complexity".to_string(), serde_json::Value::Number(dir.stats.total_complexity.into()));
+                    
+                    // Add language breakdown
+                    let languages: serde_json::Map<String, serde_json::Value> = dir.stats.languages.iter()
+                        .map(|(lang, count)| (lang.clone(), serde_json::Value::Number((*count).into())))
+                        .collect();
+                    stats.insert("languages".to_string(), serde_json::Value::Object(languages));
+                    
+                    dir_obj.insert("statistics".to_string(), serde_json::Value::Object(stats));
+                }
+                
+                // Process children
+                let children: Vec<serde_json::Value> = dir.children.values()
+                    .map(|child| Self::create_enhanced_json(child, options))
+                    .collect();
+                dir_obj.insert("children".to_string(), serde_json::Value::Array(children));
+                
+                serde_json::Value::Object(dir_obj)
+            }
+            TreeNode::File(file) => {
+                let mut file_obj = serde_json::Map::new();
+                file_obj.insert("type".to_string(), serde_json::Value::String("file".to_string()));
+                file_obj.insert("name".to_string(), serde_json::Value::String(file.name.clone()));
+                file_obj.insert("path".to_string(), serde_json::Value::String(file.path.to_string_lossy().to_string()));
+                
+                // Add language if available
+                if let Some(language) = &file.language {
+                    file_obj.insert("language".to_string(), serde_json::Value::String(language.clone()));
+                }
+                
+                // Add git status if available
+                if let Some(status) = &file.git_status {
+                    file_obj.insert("git_status".to_string(), serde_json::Value::String(Self::git_status_to_string(status)));
+                }
+                
+                // Add last modified time if available
+                if let Some(modified) = &file.last_modified {
+                    if let Ok(duration) = modified.duration_since(std::time::UNIX_EPOCH) {
+                        file_obj.insert("last_modified".to_string(), serde_json::Value::Number(duration.as_secs().into()));
+                    }
+                }
+                
+                // Add metrics if available and enabled
+                if options.show_metrics || options.show_analysis {
+                    if let Some(metrics) = &file.metrics {
+                        let mut metrics_obj = serde_json::Map::new();
+                        metrics_obj.insert("lines_of_code".to_string(), serde_json::Value::Number(metrics.lines_of_code.into()));
+                        metrics_obj.insert("comment_lines".to_string(), serde_json::Value::Number(metrics.comment_lines.into()));
+                        metrics_obj.insert("blank_lines".to_string(), serde_json::Value::Number(metrics.blank_lines.into()));
+                        metrics_obj.insert("function_count".to_string(), serde_json::Value::Number(metrics.function_count.into()));
+                        metrics_obj.insert("cyclomatic_complexity".to_string(), serde_json::Value::Number(metrics.cyclomatic_complexity.into()));
+                        file_obj.insert("metrics".to_string(), serde_json::Value::Object(metrics_obj));
+                    }
+                }
+                
+                // Add diff information if enabled and file has changes
+                if options.show_diffs {
+                    // Enhanced path matching for git status lookup
+                    let git_status = options.git_status.get(&file.path)
+                        .or_else(|| {
+                            // Try looking up by relative path
+                            if let Ok(current_dir) = std::env::current_dir() {
+                                if let Ok(relative) = file.path.strip_prefix(&current_dir) {
+                                    return options.git_status.get(relative);
+                                }
+                            }
+                            None
+                        })
+                        .or_else(|| {
+                            // Try stripping ./ prefix if present
+                            if let Some(stripped) = file.path.to_string_lossy().strip_prefix("./") {
+                                let path_without_prefix = std::path::Path::new(stripped);
+                                return options.git_status.get(path_without_prefix);
+                            }
+                            None
+                        });
+
+                    if let Some(status) = git_status {
+                        if matches!(status, crate::diagnostics::GitFileStatus::Modified | crate::diagnostics::GitFileStatus::Staged) {
+                            // Get diff content
+                            if let Ok(output) = std::process::Command::new("git")
+                                .args(&["diff", "HEAD", "--"])
+                                .arg(&file.path)
+                                .output()
+                            {
+                                if !output.stdout.is_empty() {
+                                    let diff_content = String::from_utf8_lossy(&output.stdout);
+                                    let diff_lines: Vec<serde_json::Value> = diff_content.lines()
+                                        .map(|line| serde_json::Value::String(line.to_string()))
+                                        .collect();
+                                    file_obj.insert("diff".to_string(), serde_json::Value::Array(diff_lines));
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Add diagnostics if available and enabled
+                if options.show_diagnostics {
+                    if let Some(diagnostics) = &file.diagnostics {
+                        let mut diagnostics_obj = serde_json::Map::new();
+                        
+                        // Add counts
+                        diagnostics_obj.insert("error_count".to_string(), serde_json::Value::Number(diagnostics.errors.len().into()));
+                        diagnostics_obj.insert("warning_count".to_string(), serde_json::Value::Number(diagnostics.warnings.len().into()));
+                        diagnostics_obj.insert("info_count".to_string(), serde_json::Value::Number(diagnostics.infos.len().into()));
+                        diagnostics_obj.insert("hint_count".to_string(), serde_json::Value::Number(diagnostics.hints.len().into()));
+                        diagnostics_obj.insert("total_count".to_string(), serde_json::Value::Number(diagnostics.total_count().into()));
+                        
+                        // Add error details
+                        let errors: Vec<serde_json::Value> = diagnostics.errors.iter()
+                            .map(|error| Self::diagnostic_to_json(error))
+                            .collect();
+                        diagnostics_obj.insert("errors".to_string(), serde_json::Value::Array(errors));
+                        
+                        // Add warning details
+                        let warnings: Vec<serde_json::Value> = diagnostics.warnings.iter()
+                            .map(|warning| Self::diagnostic_to_json(warning))
+                            .collect();
+                        diagnostics_obj.insert("warnings".to_string(), serde_json::Value::Array(warnings));
+                        
+                        // Add info details
+                        let infos: Vec<serde_json::Value> = diagnostics.infos.iter()
+                            .map(|info| Self::diagnostic_to_json(info))
+                            .collect();
+                        diagnostics_obj.insert("infos".to_string(), serde_json::Value::Array(infos));
+                        
+                        // Add hint details
+                        let hints: Vec<serde_json::Value> = diagnostics.hints.iter()
+                            .map(|hint| Self::diagnostic_to_json(hint))
+                            .collect();
+                        diagnostics_obj.insert("hints".to_string(), serde_json::Value::Array(hints));
+                        
+                        file_obj.insert("diagnostics".to_string(), serde_json::Value::Object(diagnostics_obj));
+                    }
+                }
+                
+                serde_json::Value::Object(file_obj)
+            }
+        }
+    }
+    
+    /// Convert a diagnostic to JSON format
+    fn diagnostic_to_json(diagnostic: &crate::diagnostics::types::CompilerDiagnostic) -> serde_json::Value {
+        let mut diag_obj = serde_json::Map::new();
+        
+        diag_obj.insert("severity".to_string(), serde_json::Value::String(
+            match diagnostic.severity {
+                crate::diagnostics::types::DiagnosticSeverity::Error => "error",
+                crate::diagnostics::types::DiagnosticSeverity::Warning => "warning", 
+                crate::diagnostics::types::DiagnosticSeverity::Info => "info",
+                crate::diagnostics::types::DiagnosticSeverity::Hint => "hint",
+            }.to_string()
+        ));
+        
+        diag_obj.insert("message".to_string(), serde_json::Value::String(diagnostic.message.clone()));
+        
+        if let Some(code) = &diagnostic.code {
+            diag_obj.insert("code".to_string(), serde_json::Value::String(code.clone()));
+        }
+        
+        // Add location information
+        let mut location_obj = serde_json::Map::new();
+        location_obj.insert("line".to_string(), serde_json::Value::Number(diagnostic.location.line.into()));
+        location_obj.insert("column".to_string(), serde_json::Value::Number(diagnostic.location.column.into()));
+        if let Some(length) = diagnostic.location.length {
+            location_obj.insert("length".to_string(), serde_json::Value::Number(length.into()));
+        }
+        diag_obj.insert("location".to_string(), serde_json::Value::Object(location_obj));
+        
+        serde_json::Value::Object(diag_obj)
+    }
+    
+    /// Convert git status to string for JSON
+    fn git_status_to_string(status: &crate::diagnostics::GitFileStatus) -> String {
+        match status {
+            crate::diagnostics::GitFileStatus::Modified => "modified".to_string(),
+            crate::diagnostics::GitFileStatus::Staged => "staged".to_string(),
+            crate::diagnostics::GitFileStatus::Untracked => "untracked".to_string(),
+            crate::diagnostics::GitFileStatus::Conflicted => "conflicted".to_string(),
         }
     }
     
