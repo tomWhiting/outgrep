@@ -331,7 +331,7 @@ impl TreeBuilder {
                 if let Some(message) = json.get("message") {
                     if let Some(spans) = message.get("spans").and_then(|s| s.as_array()) {
                         for span in spans {
-                            if let Some((file_path, diagnostic)) = Self::parse_rust_workspace_span(span, project_root) {
+                            if let Some((file_path, diagnostic)) = Self::parse_rust_workspace_span(span, message, project_root) {
                                 diagnostics_by_file
                                     .entry(file_path)
                                     .or_insert_with(FileDiagnostics::default)
@@ -351,7 +351,7 @@ impl TreeBuilder {
     }
     
     /// Parse a single Rust span for workspace diagnostics
-    fn parse_rust_workspace_span(span: &serde_json::Value, project_root: &Path) -> Option<(PathBuf, crate::diagnostics::types::CompilerDiagnostic)> {
+    fn parse_rust_workspace_span(span: &serde_json::Value, message_obj: &serde_json::Value, project_root: &Path) -> Option<(PathBuf, crate::diagnostics::types::CompilerDiagnostic)> {
         let span_file = span.get("file_name")?.as_str()?;
         
         // Convert relative path to absolute path from project root
@@ -367,12 +367,38 @@ impl TreeBuilder {
             .and_then(|end| end.as_u64())
             .map(|end| (end as u32).saturating_sub(column));
 
-        let message = span.get("label")?.as_str()?.to_string();
+        // Get the full message from the parent message object
+        let full_message = message_obj.get("message")?.as_str()?.to_string();
+        
+        // Get the span label as additional context
+        let span_label = span.get("label").and_then(|l| l.as_str()).unwrap_or("");
+        
+        // Combine full message with span label if they're different
+        let combined_message = if !span_label.is_empty() && !full_message.contains(span_label) {
+            format!("{} ({})", full_message, span_label)
+        } else {
+            full_message
+        };
+        
+        // Parse severity from message level
+        let severity = match message_obj.get("level").and_then(|l| l.as_str()) {
+            Some("error") => crate::diagnostics::types::DiagnosticSeverity::Error,
+            Some("warning") => crate::diagnostics::types::DiagnosticSeverity::Warning,
+            Some("note") | Some("info") => crate::diagnostics::types::DiagnosticSeverity::Info,
+            Some("help") => crate::diagnostics::types::DiagnosticSeverity::Hint,
+            _ => crate::diagnostics::types::DiagnosticSeverity::Warning,
+        };
+        
+        // Extract error code if available
+        let code = message_obj.get("code")
+            .and_then(|c| c.get("code"))
+            .and_then(|c| c.as_str())
+            .map(|s| s.to_string());
         
         let diagnostic = crate::diagnostics::types::CompilerDiagnostic {
-            severity: crate::diagnostics::types::DiagnosticSeverity::Warning, // Most cargo check output are warnings
-            message,
-            code: None,
+            severity,
+            message: combined_message,
+            code,
             location: crate::diagnostics::types::DiagnosticLocation { line, column, length },
             file_path: file_path.clone(),
             suggestions: Vec::new(),

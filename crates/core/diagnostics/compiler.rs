@@ -152,7 +152,7 @@ impl CompilerDiagnosticsRunner {
                 if let Some(message) = json.get("message") {
                     if let Some(spans) = message.get("spans").and_then(|s| s.as_array()) {
                         for span in spans {
-                            if let Some(diagnostic) = Self::parse_rust_span(span, file_path) {
+                            if let Some(diagnostic) = Self::parse_rust_span(span, message, file_path) {
                                 diagnostics.add_diagnostic(diagnostic);
                             }
                         }
@@ -169,7 +169,7 @@ impl CompilerDiagnosticsRunner {
     }
 
     /// Parse a single Rust span into a diagnostic
-    fn parse_rust_span(span: &serde_json::Value, file_path: &Path) -> Option<CompilerDiagnostic> {
+    fn parse_rust_span(span: &serde_json::Value, message_obj: &serde_json::Value, file_path: &Path) -> Option<CompilerDiagnostic> {
         let span_file = span.get("file_name")?.as_str()?;
         
         // Only return diagnostics for the specific file we're checking
@@ -211,12 +211,38 @@ impl CompilerDiagnosticsRunner {
             .and_then(|end| end.as_u64())
             .map(|end| (end as u32).saturating_sub(column));
 
-        let message = span.get("label")?.as_str()?.to_string();
+        // Get the full message from the parent message object
+        let full_message = message_obj.get("message")?.as_str()?.to_string();
+        
+        // Get the span label as additional context
+        let span_label = span.get("label").and_then(|l| l.as_str()).unwrap_or("");
+        
+        // Combine full message with span label if they're different
+        let combined_message = if !span_label.is_empty() && !full_message.contains(span_label) {
+            format!("{} ({})", full_message, span_label)
+        } else {
+            full_message
+        };
+        
+        // Parse severity from message level
+        let severity = match message_obj.get("level").and_then(|l| l.as_str()) {
+            Some("error") => DiagnosticSeverity::Error,
+            Some("warning") => DiagnosticSeverity::Warning,
+            Some("note") | Some("info") => DiagnosticSeverity::Info,
+            Some("help") => DiagnosticSeverity::Hint,
+            _ => DiagnosticSeverity::Error,
+        };
+        
+        // Extract error code if available
+        let code = message_obj.get("code")
+            .and_then(|c| c.get("code"))
+            .and_then(|c| c.as_str())
+            .map(|s| s.to_string());
         
         Some(CompilerDiagnostic {
-            severity: DiagnosticSeverity::Error, // Rust cargo check mostly reports errors
-            message,
-            code: None,
+            severity,
+            message: combined_message,
+            code,
             location: DiagnosticLocation { line, column, length },
             file_path: file_path.to_path_buf(),
             suggestions: Vec::new(),

@@ -86,16 +86,11 @@ fn run(result: crate::flags::ParseResult<HiArgs>) -> anyhow::Result<ExitCode> {
     };
     let matched = if args.analyze() && args.watch() {
         return tokio::runtime::Runtime::new()?.block_on(analyze_and_watch(&args));
-    } else if args.analyze() {
-        return tokio::runtime::Runtime::new()?.block_on(analyze(&args));
     } else if args.watch() {
         return tokio::runtime::Runtime::new()?.block_on(watch(&args));
-    } else if args.diff() && args.tree() {
-        return tokio::runtime::Runtime::new()?.block_on(tree_with_diff(&args));
-    } else if args.tree() {
-        return tokio::runtime::Runtime::new()?.block_on(tree_only(&args));
-    } else if args.diff() {
-        return tokio::runtime::Runtime::new()?.block_on(diff_only(&args));
+    } else if args.tree() || args.analyze() || args.diff() || args.diagnostics() {
+        // Unified tree backbone for all analysis modes
+        return tokio::runtime::Runtime::new()?.block_on(unified_tree_mode(&args));
     } else {
         match args.mode() {
             Mode::Search(_) if !args.matches_possible() => false,
@@ -1191,4 +1186,262 @@ async fn analyze_and_watch(args: &HiArgs) -> anyhow::Result<ExitCode> {
             std::io::stdout().flush().unwrap();
         }
     }
+}
+
+/// Entry point for unified tree mode that integrates all analysis types
+///
+/// This function serves as the backbone for integrating tree, diff, analyze, and diagnostics
+/// into a single coherent view when any of these flags are enabled.
+async fn unified_tree_mode(args: &HiArgs) -> anyhow::Result<ExitCode> {
+    use crate::diagnostics::{GitAnalyzer, TreeBuilder, TreeDisplay, TreeDisplayOptions};
+    
+    // Determine header based on active flags
+    let header = if args.tree() && args.diff() && args.analyze() && args.diagnostics() {
+        "🔍 Outgrep Unified Analysis (Tree + Diff + Analysis + Diagnostics)"
+    } else if args.tree() && args.diff() && args.analyze() {
+        "🔍 Outgrep Unified Analysis (Tree + Diff + Analysis)"
+    } else if args.tree() && args.diff() && args.diagnostics() {
+        "🔍 Outgrep Unified Analysis (Tree + Diff + Diagnostics)"
+    } else if args.tree() && args.analyze() && args.diagnostics() {
+        "🔍 Outgrep Unified Analysis (Tree + Analysis + Diagnostics)"
+    } else if args.diff() && args.analyze() && args.diagnostics() {
+        "🔍 Outgrep Unified Analysis (Diff + Analysis + Diagnostics)"
+    } else if args.tree() && args.diff() {
+        "🔍 Outgrep Tree + Diff Analysis"
+    } else if args.tree() && args.analyze() {
+        "🔍 Outgrep Tree + Code Analysis"
+    } else if args.tree() && args.diagnostics() {
+        "🔍 Outgrep Tree + Diagnostics"
+    } else if args.diff() && args.analyze() {
+        "🔍 Outgrep Diff + Code Analysis"
+    } else if args.diff() && args.diagnostics() {
+        "🔍 Outgrep Diff + Diagnostics"
+    } else if args.analyze() && args.diagnostics() {
+        "🔍 Outgrep Code Analysis + Diagnostics"
+    } else if args.tree() {
+        "🌳 Outgrep Tree View"
+    } else if args.diff() {
+        "🔍 Outgrep Git Diff Analysis"
+    } else if args.analyze() {
+        "🔍 Outgrep Code Intelligence Analysis"
+    } else if args.diagnostics() {
+        "🔍 Outgrep Compiler Diagnostics"
+    } else {
+        "🔍 Outgrep Analysis"
+    };
+    
+    println!("{}", header);
+    println!("{}", "=".repeat(header.len()));
+    println!();
+    
+    // Use current directory for analysis
+    let root_path_buf = std::path::PathBuf::from(".");
+    
+    // Initialize Git analyzer and tree builder
+    let git_analyzer = GitAnalyzer::new(&root_path_buf);
+    let git_status = git_analyzer.get_status_for_cwd().unwrap_or_default();
+    let git_diagnostics = git_analyzer.get_diagnostics().ok();
+    
+    // Display git status summary if available and relevant
+    if !git_status.is_empty() && (args.diff() || args.tree()) {
+        if let Some(git_diagnostics) = git_diagnostics {
+            println!("🔗 Git Status: {}", git_analyzer.diagnostics_summary(&git_diagnostics));
+            println!();
+        }
+    }
+    
+    // Handle tree mode or file-centric mode
+    if args.tree() {
+        // Tree backbone mode - integrate everything into tree structure
+        println!("🌳 Directory Tree");
+        println!("=================");
+        println!();
+        
+        let tree_builder = TreeBuilder::new(&root_path_buf);
+        match tree_builder.build_tree(&root_path_buf) {
+            Ok(tree) => {
+                let options = TreeDisplayOptions {
+                    show_metrics: args.analyze(),
+                    show_diffs: args.diff(),
+                    show_analysis: args.analyze(),
+                    show_diagnostics: args.diagnostics(),
+                    truncate_diffs: args.truncate_diffs(),
+                    output_json: args.json_output(),
+                    git_status: git_status.clone(),
+                };
+                
+                if args.json_output() {
+                    TreeDisplay::output_json(&tree, &options);
+                } else {
+                    TreeDisplay::display_tree_with_options(&tree, &options);
+                }
+            }
+            Err(e) => {
+                eprintln!("Error building tree: {}", e);
+                return Ok(ExitCode::from(1));
+            }
+        }
+    } else {
+        // File-centric mode - show full paths with integrated analysis
+        use crate::diagnostics::MetricsCalculator;
+        
+        // Walk through files and show file-centric information
+        let walker = ignore::WalkBuilder::new(&root_path_buf)
+            .hidden(false)
+            .git_ignore(true)
+            .git_global(true)
+            .git_exclude(true)
+            .ignore(true)
+            .parents(true)
+            .build();
+        
+        let mut analyzed_files = 0;
+        let mut total_files = 0;
+        let mut total_loc = 0;
+        let mut total_comments = 0;
+        let mut total_functions = 0;
+        let mut total_complexity = 0;
+        
+        for result in walker {
+            let entry = match result {
+                Ok(entry) => entry,
+                Err(err) => {
+                    eprintln!("Warning: {}", err);
+                    continue;
+                }
+            };
+            
+            // Skip directories
+            if entry.file_type().map_or(false, |ft| ft.is_dir()) {
+                continue;
+            }
+            
+            let path = entry.path();
+            
+            // Skip common lock files and generated files
+            if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+                match file_name {
+                    "Cargo.lock" | "package-lock.json" | "yarn.lock" | "pnpm-lock.yaml" | 
+                    "composer.lock" | "Gemfile.lock" | "poetry.lock" | "Pipfile.lock" => {
+                        continue;
+                    }
+                    _ => {}
+                }
+            }
+            
+            let relative_path = path.strip_prefix(&root_path_buf).unwrap_or(path);
+            
+            // Check if this file should be displayed
+            let should_display = if args.diff() {
+                // For diff mode, only show files with changes
+                git_status.contains_key(relative_path)
+            } else {
+                // For other modes, show all source files or all files based on context
+                if args.analyze() || args.diagnostics() {
+                    // Show only source files for analysis/diagnostics
+                    path.extension()
+                        .and_then(|e| e.to_str())
+                        .map(|ext| matches!(ext, 
+                            "rs" | "js" | "jsx" | "ts" | "tsx" | "py" | "java" | "go" | 
+                            "c" | "cpp" | "cc" | "cxx" | "h" | "hpp" | "php" | "rb" | 
+                            "cs" | "swift" | "kt" | "scala" | "clj" | "cljs" | "hs" | 
+                            "elm" | "ex" | "exs" | "erl" | "lua" | "r" | "jl" | "dart"
+                        ))
+                        .unwrap_or(false)
+                } else {
+                    true
+                }
+            };
+            
+            if !should_display {
+                continue;
+            }
+            
+            // Get git status for this file
+            let file_git_status = git_status.get(relative_path);
+            let status_icon = if let Some(status) = file_git_status {
+                match status {
+                    crate::diagnostics::GitFileStatus::Modified => "📝",
+                    crate::diagnostics::GitFileStatus::Staged => "📁",
+                    crate::diagnostics::GitFileStatus::Untracked => "❓",
+                    crate::diagnostics::GitFileStatus::Conflicted => "⚠️",
+                }
+            } else {
+                "📄"
+            };
+            
+            // Display file with full path
+            print!("{} {}", status_icon, relative_path.display());
+            
+            // Add analysis information if requested
+            if args.analyze() {
+                if let Ok(content) = std::fs::read_to_string(path) {
+                    if let Ok(metrics) = MetricsCalculator::calculate_metrics(path, &content) {
+                        print!(" - {}", MetricsCalculator::metrics_summary(&metrics));
+                        
+                        // Update totals
+                        total_files += 1;
+                        total_loc += metrics.lines_of_code;
+                        total_comments += metrics.comment_lines;
+                        total_functions += metrics.function_count as u64;
+                        total_complexity += metrics.cyclomatic_complexity as u64;
+                        analyzed_files += 1;
+                    }
+                }
+            }
+            
+            println!(); // End the file line
+            
+            // Show diff if requested and file has changes
+            if args.diff() && file_git_status.is_some() {
+                match git_analyzer.get_semantic_diff(path) {
+                    Ok(diff) => {
+                        if !diff.trim().is_empty() {
+                            println!("  ┌─ Diff:");
+                            let lines: Vec<&str> = diff.lines().collect();
+                            let lines_to_show = if args.truncate_diffs() && lines.len() > 10 {
+                                &lines[..10]
+                            } else {
+                                &lines
+                            };
+                            
+                            for line in lines_to_show {
+                                println!("  │ {}", line);
+                            }
+                            
+                            if args.truncate_diffs() && lines.len() > 10 {
+                                println!("  │ ... (truncated, showing first 10 lines of {} total)", lines.len());
+                            }
+                            println!("  └─");
+                        }
+                    }
+                    Err(e) => {
+                        println!("  └─ Diff Error: {}", e);
+                    }
+                }
+            }
+            
+            // Show diagnostics if requested (would need to implement file-level diagnostics)
+            if args.diagnostics() {
+                // For file-centric mode, we would need to run diagnostics per file
+                // This is a simplified placeholder - the tree mode already has full diagnostics integration
+                println!("  └─ (Diagnostics available in tree mode: --tree --diagnostics)");
+            }
+        }
+        
+        // Show summary statistics if analysis was performed
+        if args.analyze() && analyzed_files > 0 {
+            println!();
+            println!("📊 Summary Statistics:");
+            println!("  Files analyzed: {}", analyzed_files);
+            println!("  Total lines of code: {}", total_loc);
+            println!("  Total comment lines: {}", total_comments);
+            println!("  Total functions: {}", total_functions);
+            println!("  Average complexity: {:.1}", 
+                if total_functions > 0 { total_complexity as f64 / total_functions as f64 } else { 0.0 }
+            );
+        }
+    }
+    
+    Ok(ExitCode::from(0))
 }
