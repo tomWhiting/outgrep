@@ -505,6 +505,19 @@ impl TreeDisplay {
                 dir_obj.insert("name".to_string(), serde_json::Value::String(dir.name.clone()));
                 dir_obj.insert("path".to_string(), serde_json::Value::String(dir.path.to_string_lossy().to_string()));
                 
+                // Add absolute path
+                if let Ok(absolute_path) = dir.path.canonicalize() {
+                    dir_obj.insert("absolute_path".to_string(), serde_json::Value::String(
+                        absolute_path.to_string_lossy().to_string()
+                    ));
+                } else if let Ok(current_dir) = std::env::current_dir() {
+                    // Fallback: join with current directory if canonicalize fails
+                    let absolute_fallback = current_dir.join(&dir.path);
+                    dir_obj.insert("absolute_path".to_string(), serde_json::Value::String(
+                        absolute_fallback.to_string_lossy().to_string()
+                    ));
+                }
+                
                 // Add git status if available
                 if let Some(status) = &dir.git_status {
                     dir_obj.insert("git_status".to_string(), serde_json::Value::String(Self::git_status_to_string(status)));
@@ -542,6 +555,19 @@ impl TreeDisplay {
                 file_obj.insert("type".to_string(), serde_json::Value::String("file".to_string()));
                 file_obj.insert("name".to_string(), serde_json::Value::String(file.name.clone()));
                 file_obj.insert("path".to_string(), serde_json::Value::String(file.path.to_string_lossy().to_string()));
+                
+                // Add absolute path
+                if let Ok(absolute_path) = file.path.canonicalize() {
+                    file_obj.insert("absolute_path".to_string(), serde_json::Value::String(
+                        absolute_path.to_string_lossy().to_string()
+                    ));
+                } else if let Ok(current_dir) = std::env::current_dir() {
+                    // Fallback: join with current directory if canonicalize fails
+                    let absolute_fallback = current_dir.join(&file.path);
+                    file_obj.insert("absolute_path".to_string(), serde_json::Value::String(
+                        absolute_fallback.to_string_lossy().to_string()
+                    ));
+                }
                 
                 // Add language if available
                 if let Some(language) = &file.language {

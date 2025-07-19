@@ -1195,45 +1195,6 @@ async fn analyze_and_watch(args: &HiArgs) -> anyhow::Result<ExitCode> {
 async fn unified_tree_mode(args: &HiArgs) -> anyhow::Result<ExitCode> {
     use crate::diagnostics::{GitAnalyzer, TreeBuilder, TreeDisplay, TreeDisplayOptions};
     
-    // Determine header based on active flags
-    let header = if args.tree() && args.diff() && args.analyze() && args.diagnostics() {
-        "🔍 Outgrep Unified Analysis (Tree + Diff + Analysis + Diagnostics)"
-    } else if args.tree() && args.diff() && args.analyze() {
-        "🔍 Outgrep Unified Analysis (Tree + Diff + Analysis)"
-    } else if args.tree() && args.diff() && args.diagnostics() {
-        "🔍 Outgrep Unified Analysis (Tree + Diff + Diagnostics)"
-    } else if args.tree() && args.analyze() && args.diagnostics() {
-        "🔍 Outgrep Unified Analysis (Tree + Analysis + Diagnostics)"
-    } else if args.diff() && args.analyze() && args.diagnostics() {
-        "🔍 Outgrep Unified Analysis (Diff + Analysis + Diagnostics)"
-    } else if args.tree() && args.diff() {
-        "🔍 Outgrep Tree + Diff Analysis"
-    } else if args.tree() && args.analyze() {
-        "🔍 Outgrep Tree + Code Analysis"
-    } else if args.tree() && args.diagnostics() {
-        "🔍 Outgrep Tree + Diagnostics"
-    } else if args.diff() && args.analyze() {
-        "🔍 Outgrep Diff + Code Analysis"
-    } else if args.diff() && args.diagnostics() {
-        "🔍 Outgrep Diff + Diagnostics"
-    } else if args.analyze() && args.diagnostics() {
-        "🔍 Outgrep Code Analysis + Diagnostics"
-    } else if args.tree() {
-        "🌳 Outgrep Tree View"
-    } else if args.diff() {
-        "🔍 Outgrep Git Diff Analysis"
-    } else if args.analyze() {
-        "🔍 Outgrep Code Intelligence Analysis"
-    } else if args.diagnostics() {
-        "🔍 Outgrep Compiler Diagnostics"
-    } else {
-        "🔍 Outgrep Analysis"
-    };
-    
-    println!("{}", header);
-    println!("{}", "=".repeat(header.len()));
-    println!();
-    
     // Use current directory for analysis
     let root_path_buf = std::path::PathBuf::from(".");
     
@@ -1242,20 +1203,64 @@ async fn unified_tree_mode(args: &HiArgs) -> anyhow::Result<ExitCode> {
     let git_status = git_analyzer.get_status_for_cwd().unwrap_or_default();
     let git_diagnostics = git_analyzer.get_diagnostics().ok();
     
-    // Display git status summary if available and relevant
-    if !git_status.is_empty() && (args.diff() || args.tree()) {
-        if let Some(git_diagnostics) = git_diagnostics {
-            println!("🔗 Git Status: {}", git_analyzer.diagnostics_summary(&git_diagnostics));
-            println!();
+    // Only show headers and status when NOT in JSON output mode
+    if !args.json_output() {
+        // Determine header based on active flags
+        let header = if args.tree() && args.diff() && args.analyze() && args.diagnostics() {
+            "🔍 Outgrep Unified Analysis (Tree + Diff + Analysis + Diagnostics)"
+        } else if args.tree() && args.diff() && args.analyze() {
+            "🔍 Outgrep Unified Analysis (Tree + Diff + Analysis)"
+        } else if args.tree() && args.diff() && args.diagnostics() {
+            "🔍 Outgrep Unified Analysis (Tree + Diff + Diagnostics)"
+        } else if args.tree() && args.analyze() && args.diagnostics() {
+            "🔍 Outgrep Unified Analysis (Tree + Analysis + Diagnostics)"
+        } else if args.diff() && args.analyze() && args.diagnostics() {
+            "🔍 Outgrep Unified Analysis (Diff + Analysis + Diagnostics)"
+        } else if args.tree() && args.diff() {
+            "🔍 Outgrep Tree + Diff Analysis"
+        } else if args.tree() && args.analyze() {
+            "🔍 Outgrep Tree + Code Analysis"
+        } else if args.tree() && args.diagnostics() {
+            "🔍 Outgrep Tree + Diagnostics"
+        } else if args.diff() && args.analyze() {
+            "🔍 Outgrep Diff + Code Analysis"
+        } else if args.diff() && args.diagnostics() {
+            "🔍 Outgrep Diff + Diagnostics"
+        } else if args.analyze() && args.diagnostics() {
+            "🔍 Outgrep Code Analysis + Diagnostics"
+        } else if args.tree() {
+            "🌳 Outgrep Tree View"
+        } else if args.diff() {
+            "🔍 Outgrep Git Diff Analysis"
+        } else if args.analyze() {
+            "🔍 Outgrep Code Intelligence Analysis"
+        } else if args.diagnostics() {
+            "🔍 Outgrep Compiler Diagnostics"
+        } else {
+            "🔍 Outgrep Analysis"
+        };
+        
+        println!("{}", header);
+        println!("{}", "=".repeat(header.len()));
+        println!();
+        
+        // Display git status summary if available and relevant
+        if !git_status.is_empty() && (args.diff() || args.tree()) {
+            if let Some(git_diagnostics) = git_diagnostics {
+                println!("🔗 Git Status: {}", git_analyzer.diagnostics_summary(&git_diagnostics));
+                println!();
+            }
         }
     }
     
     // Handle tree mode or file-centric mode
     if args.tree() {
         // Tree backbone mode - integrate everything into tree structure
-        println!("🌳 Directory Tree");
-        println!("=================");
-        println!();
+        if !args.json_output() {
+            println!("🌳 Directory Tree");
+            println!("=================");
+            println!();
+        }
         
         let tree_builder = TreeBuilder::new(&root_path_buf);
         match tree_builder.build_tree(&root_path_buf) {
@@ -1469,6 +1474,13 @@ async fn output_unified_json(
             .to_string()
     ));
     metadata.insert("analysis_type".to_string(), serde_json::Value::String("unified_tree".to_string()));
+    
+    // Add absolute project root path
+    if let Ok(absolute_root) = std::env::current_dir() {
+        metadata.insert("project_root_absolute".to_string(), serde_json::Value::String(
+            absolute_root.to_string_lossy().to_string()
+        ));
+    }
     
     // Add enabled features
     let mut features = serde_json::Map::new();
