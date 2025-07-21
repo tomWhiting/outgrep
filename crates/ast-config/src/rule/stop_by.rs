@@ -1,8 +1,8 @@
 use super::deserialize_env::DeserializeEnv;
 use crate::rule::{Rule, RuleSerializeError, SerializableRule};
 
-use ast_grep_core::language::Language;
-use ast_grep_core::{Doc, Node};
+use outgrep_ast_core::language::Language;
+use outgrep_ast_core::{Doc, Node};
 
 use schemars::JsonSchema;
 use serde::de::{self, Deserializer, MapAccess, Visitor};

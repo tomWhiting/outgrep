@@ -2,9 +2,9 @@ use super::Ctx;
 use super::{trans::parse_meta_var, TransformError};
 use crate::rule_core::RuleCore;
 
-use ast_grep_core::meta_var::MetaVariable;
-use ast_grep_core::source::{Content, Edit};
-use ast_grep_core::{Doc, Language, Node, NodeMatch};
+use outgrep_ast_core::meta_var::MetaVariable;
+use outgrep_ast_core::source::{Content, Edit};
+use outgrep_ast_core::{Doc, Language, Node, NodeMatch};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -342,7 +342,7 @@ fix: $D
     rewrite: Rewrite<String>,
     reg: RuleRegistration,
   ) -> Option<String> {
-    use ast_grep_core::tree_sitter::LanguageExt;
+    use outgrep_ast_core::tree_sitter::LanguageExt;
     let grep = TypeScript::Tsx.ast_grep(src);
     let root = grep.root();
     let mut nm = root.find(pat).expect("should find");

@@ -6,9 +6,9 @@ use crate::rule::{RuleSerializeError, SerializableRule};
 use crate::transform::{Transform, TransformError, Transformation};
 use crate::DeserializeEnv;
 
-use ast_grep_core::language::Language;
-use ast_grep_core::meta_var::MetaVarEnv;
-use ast_grep_core::{Doc, Matcher, Node};
+use outgrep_ast_core::language::Language;
+use outgrep_ast_core::meta_var::MetaVarEnv;
+use outgrep_ast_core::{Doc, Matcher, Node};
 use serde::{Deserialize, Serialize};
 use serde_yaml::Error as YamlError;
 
@@ -284,8 +284,8 @@ mod test {
   use crate::from_str;
   use crate::rule::referent_rule::{ReferentRule, ReferentRuleError};
   use crate::test::TypeScript;
-  use ast_grep_core::matcher::{Pattern, RegexMatcher};
-  use ast_grep_core::tree_sitter::LanguageExt;
+  use outgrep_ast_core::matcher::{Pattern, RegexMatcher};
+  use outgrep_ast_core::tree_sitter::LanguageExt;
 
   fn get_matcher(src: &str) -> RResult<RuleCore> {
     let env = DeserializeEnv::new(TypeScript::Tsx);

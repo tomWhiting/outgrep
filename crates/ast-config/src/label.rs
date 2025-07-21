@@ -1,4 +1,4 @@
-use ast_grep_core::{Doc, Node, NodeMatch};
+use outgrep_ast_core::{Doc, Node, NodeMatch};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, ops::Range};
@@ -92,9 +92,9 @@ pub fn get_default_labels<'t, D: Doc>(n: &NodeMatch<'t, D>) -> Vec<Label<'static
 mod tests {
   use super::*;
   use crate::test::TypeScript;
-  use ast_grep_core::matcher::Pattern;
-  use ast_grep_core::tree_sitter::LanguageExt;
-  use ast_grep_core::tree_sitter::StrDoc;
+  use outgrep_ast_core::matcher::Pattern;
+  use outgrep_ast_core::tree_sitter::LanguageExt;
+  use outgrep_ast_core::tree_sitter::StrDoc;
 
   #[test]
   fn test_label_primary_secondary() {

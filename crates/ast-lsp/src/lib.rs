@@ -7,8 +7,8 @@ use tower_lsp_server::lsp_types::*;
 use tower_lsp_server::UriExt;
 use tower_lsp_server::{Client, LanguageServer};
 
-use ast_grep_config::{CombinedScan, RuleCollection, RuleConfig, Severity};
-use ast_grep_core::{
+use outgrep_ast_config::{CombinedScan, RuleCollection, RuleConfig, Severity};
+use outgrep_ast_core::{
   tree_sitter::{LanguageExt, StrDoc},
   AstGrep, Doc,
 };
@@ -393,7 +393,7 @@ impl<L: LSPLang> Backend<L> {
     text_document: TextDocumentIdentifier,
   ) -> std::result::Result<HashMap<Uri, Vec<TextEdit>>, LspError>
   where
-    L: ast_grep_core::Language + std::cmp::Eq,
+    L: outgrep_ast_core::Language + std::cmp::Eq,
   {
     let uri = text_document.uri;
     let versioned = self

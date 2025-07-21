@@ -1,9 +1,9 @@
 use super::deserialize_env::DeserializeEnv;
 use super::stop_by::{SerializableStopBy, StopBy};
 use crate::rule::{Rule, RuleSerializeError, SerializableRule};
-use ast_grep_core::language::Language;
-use ast_grep_core::meta_var::MetaVarEnv;
-use ast_grep_core::{Doc, Matcher, Node};
+use outgrep_ast_core::language::Language;
+use outgrep_ast_core::meta_var::MetaVarEnv;
+use outgrep_ast_core::{Doc, Matcher, Node};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -268,10 +268,10 @@ impl Matcher for Follows {
 mod test {
   use super::*;
   use crate::test::TypeScript as TS;
-  use ast_grep_core::matcher::KindMatcher;
-  use ast_grep_core::ops as o;
-  use ast_grep_core::Pattern;
-  use ast_grep_core::{tree_sitter::LanguageExt, Language};
+  use outgrep_ast_core::matcher::KindMatcher;
+  use outgrep_ast_core::ops as o;
+  use outgrep_ast_core::Pattern;
+  use outgrep_ast_core::{tree_sitter::LanguageExt, Language};
 
   fn find_rule<M: Matcher>(src: &str, matcher: M) -> Option<String> {
     let grep = TS::Tsx.ast_grep(src);

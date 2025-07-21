@@ -15,11 +15,11 @@ use range::{RangeMatcher, RangeMatcherError, SerializableRange};
 use referent_rule::{ReferentRule, ReferentRuleError};
 use relational_rule::{Follows, Has, Inside, Precedes};
 
-use ast_grep_core::language::Language;
-use ast_grep_core::matcher::{KindMatcher, KindMatcherError, RegexMatcher, RegexMatcherError};
-use ast_grep_core::meta_var::MetaVarEnv;
-use ast_grep_core::{ops as o, Doc, Node};
-use ast_grep_core::{MatchStrictness, Matcher, Pattern, PatternError};
+use outgrep_ast_core::language::Language;
+use outgrep_ast_core::matcher::{KindMatcher, KindMatcherError, RegexMatcher, RegexMatcherError};
+use outgrep_ast_core::meta_var::MetaVarEnv;
+use outgrep_ast_core::{ops as o, Doc, Node};
+use outgrep_ast_core::{MatchStrictness, Matcher, Pattern, PatternError};
 
 use bit_set::BitSet;
 use schemars::JsonSchema;
@@ -147,6 +147,8 @@ pub enum Strictness {
   Relaxed,
   /// ast-nodes excluding comments, without text
   Signature,
+  /// similar to smart, but node kinds are ignored, only text is matched
+  Template,
 }
 
 impl From<MatchStrictness> for Strictness {
@@ -159,6 +161,7 @@ impl From<MatchStrictness> for Strictness {
       M::Ast => S::Ast,
       M::Relaxed => S::Relaxed,
       M::Signature => S::Signature,
+      M::Template => S::Template,
     }
   }
 }
@@ -173,6 +176,7 @@ impl From<Strictness> for MatchStrictness {
       S::Ast => M::Ast,
       S::Relaxed => M::Relaxed,
       S::Signature => M::Signature,
+      S::Template => M::Template,
     }
   }
 }
@@ -489,7 +493,7 @@ mod test {
   use super::*;
   use crate::from_str;
   use crate::test::TypeScript;
-  use ast_grep_core::tree_sitter::LanguageExt;
+  use outgrep_ast_core::tree_sitter::LanguageExt;
   use PatternStyle::*;
 
   #[test]

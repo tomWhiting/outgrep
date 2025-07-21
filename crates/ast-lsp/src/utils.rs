@@ -1,10 +1,10 @@
 //! Provides utility to convert ast-grep data types to lsp data types
-use ast_grep_config::Label;
-use ast_grep_config::LabelStyle;
-use ast_grep_config::RuleConfig;
-use ast_grep_config::Severity;
-use ast_grep_core::tree_sitter::{LanguageExt, StrDoc};
-use ast_grep_core::{Doc, Node, NodeMatch};
+use outgrep_ast_config::Label;
+use outgrep_ast_config::LabelStyle;
+use outgrep_ast_config::RuleConfig;
+use outgrep_ast_config::Severity;
+use outgrep_ast_core::tree_sitter::{LanguageExt, StrDoc};
+use outgrep_ast_core::{Doc, Node, NodeMatch};
 
 use serde::{Deserialize, Serialize};
 use tower_lsp_server::lsp_types::*;

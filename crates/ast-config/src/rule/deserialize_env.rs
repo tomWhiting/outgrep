@@ -4,9 +4,9 @@ use crate::maybe::Maybe;
 use crate::rule::{self, Rule, RuleSerializeError, SerializableRule};
 use crate::rule_core::{RuleCoreError, SerializableRuleCore};
 use crate::transform::Trans;
-use ast_grep_core::meta_var::MetaVariable;
+use outgrep_ast_core::meta_var::MetaVariable;
 
-use ast_grep_core::language::Language;
+use outgrep_ast_core::language::Language;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -214,8 +214,8 @@ mod test {
   use super::*;
   use crate::test::TypeScript;
   use crate::{from_str, Rule};
-  use ast_grep_core::tree_sitter::LanguageExt;
-  use ast_grep_core::Matcher;
+  use outgrep_ast_core::tree_sitter::LanguageExt;
+  use outgrep_ast_core::Matcher;
 
   type Result<T> = std::result::Result<T, RuleSerializeError>;
 

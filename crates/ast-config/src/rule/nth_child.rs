@@ -1,8 +1,8 @@
 use super::{DeserializeEnv, Rule, RuleSerializeError, SerializableRule};
 
-use ast_grep_core::language::Language;
-use ast_grep_core::meta_var::MetaVarEnv;
-use ast_grep_core::{Doc, Matcher, Node};
+use outgrep_ast_core::language::Language;
+use outgrep_ast_core::meta_var::MetaVarEnv;
+use outgrep_ast_core::{Doc, Matcher, Node};
 
 use std::borrow::Cow;
 use std::collections::HashSet;
@@ -265,9 +265,9 @@ mod test {
   use super::*;
   use crate::from_str;
   use crate::test::TypeScript as TS;
-  use ast_grep_core::matcher::RegexMatcher;
-  use ast_grep_core::meta_var::MetaVarEnv;
-  use ast_grep_core::tree_sitter::LanguageExt;
+  use outgrep_ast_core::matcher::RegexMatcher;
+  use outgrep_ast_core::meta_var::MetaVarEnv;
+  use outgrep_ast_core::tree_sitter::LanguageExt;
 
   #[test]
   fn test_positional() {

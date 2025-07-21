@@ -12,7 +12,7 @@ mod transform;
 use serde::Deserialize;
 use serde_yaml::{with::singleton_map_recursive::deserialize, Deserializer, Error as YamlError};
 
-use ast_grep_core::language::Language;
+use outgrep_ast_core::language::Language;
 
 pub use combined::CombinedScan;
 pub use fixer::Fixer;
@@ -44,9 +44,9 @@ pub fn from_yaml_string<'a, L: Language + Deserialize<'a>>(
 #[cfg(test)]
 mod test {
   use super::*;
-  use ast_grep_core::matcher::{Pattern, PatternBuilder, PatternError};
-  use ast_grep_core::tree_sitter::{LanguageExt, StrDoc, TSLanguage};
-  use ast_grep_core::Language;
+  use outgrep_ast_core::matcher::{Pattern, PatternBuilder, PatternError};
+  use outgrep_ast_core::tree_sitter::{LanguageExt, StrDoc, TSLanguage};
+  use outgrep_ast_core::Language;
   use std::path::Path;
 
   #[derive(Clone, Deserialize, PartialEq, Eq)]

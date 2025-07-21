@@ -1,7 +1,7 @@
 use crate::{Rule, RuleCore};
 
-use ast_grep_core::meta_var::MetaVarEnv;
-use ast_grep_core::{Doc, Matcher, Node};
+use outgrep_ast_core::meta_var::MetaVarEnv;
+use outgrep_ast_core::{Doc, Matcher, Node};
 
 use bit_set::BitSet;
 use thiserror::Error;
@@ -222,8 +222,8 @@ mod test {
   use super::*;
   use crate::rule::Rule;
   use crate::test::TypeScript as TS;
-  use ast_grep_core::ops as o;
-  use ast_grep_core::Pattern;
+  use outgrep_ast_core::ops as o;
+  use outgrep_ast_core::Pattern;
 
   type Result = std::result::Result<(), ReferentRuleError>;
 

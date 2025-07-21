@@ -6,10 +6,10 @@ use crate::label::{get_default_labels, get_labels_from_config, Label, LabelConfi
 use crate::rule::DeserializeEnv;
 use crate::rule_core::{RuleCore, RuleCoreError, SerializableRuleCore};
 
-use ast_grep_core::language::Language;
-use ast_grep_core::replacer::Replacer;
-use ast_grep_core::source::Content;
-use ast_grep_core::{Doc, Matcher, NodeMatch};
+use outgrep_ast_core::language::Language;
+use outgrep_ast_core::replacer::Replacer;
+use outgrep_ast_core::source::Content;
+use outgrep_ast_core::{Doc, Matcher, NodeMatch};
 
 use schemars::{gen::SchemaGenerator, schema::Schema, JsonSchema};
 use serde::{Deserialize, Serialize};
@@ -260,7 +260,7 @@ mod test {
   use crate::from_str;
   use crate::rule::SerializableRule;
   use crate::test::TypeScript;
-  use ast_grep_core::tree_sitter::LanguageExt;
+  use outgrep_ast_core::tree_sitter::LanguageExt;
 
   fn ts_rule_config(rule: SerializableRule) -> SerializableRuleConfig<TypeScript> {
     let core = SerializableRuleCore {

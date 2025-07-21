@@ -1,8 +1,8 @@
 use crate::{RuleConfig, SerializableRule, SerializableRuleConfig, SerializableRuleCore, Severity};
 
-use ast_grep_core::language::Language;
-use ast_grep_core::matcher::{Matcher, MatcherExt};
-use ast_grep_core::{AstGrep, Doc, Node, NodeMatch};
+use outgrep_ast_core::language::Language;
+use outgrep_ast_core::matcher::{Matcher, MatcherExt};
+use outgrep_ast_core::{AstGrep, Doc, Node, NodeMatch};
 
 use std::collections::{HashMap, HashSet};
 
@@ -331,7 +331,7 @@ mod test {
   use crate::from_str;
   use crate::test::TypeScript;
   use crate::SerializableRuleConfig;
-  use ast_grep_core::tree_sitter::{LanguageExt, StrDoc};
+  use outgrep_ast_core::tree_sitter::{LanguageExt, StrDoc};
 
   fn create_rule() -> RuleConfig<TypeScript> {
     let rule: SerializableRuleConfig<TypeScript> = from_str(

@@ -1,4 +1,4 @@
-use ast_grep_core::{meta_var::MetaVarEnv, Doc, Node};
+use outgrep_ast_core::{meta_var::MetaVarEnv, Doc, Node};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -96,8 +96,8 @@ impl Matcher for RangeMatcher {
 mod test {
   use super::*;
   use crate::test::TypeScript as TS;
-  use ast_grep_core::matcher::MatcherExt;
-  use ast_grep_core::tree_sitter::LanguageExt;
+  use outgrep_ast_core::matcher::MatcherExt;
+  use outgrep_ast_core::tree_sitter::LanguageExt;
 
   #[test]
   fn test_invalid_range() {

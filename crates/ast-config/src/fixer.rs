@@ -2,8 +2,8 @@ use crate::maybe::Maybe;
 use crate::rule::{Relation, Rule, RuleSerializeError, StopBy};
 use crate::transform::Transformation;
 use crate::DeserializeEnv;
-use ast_grep_core::replacer::{Content, Replacer, TemplateFix, TemplateFixError};
-use ast_grep_core::{Doc, Language, Matcher, NodeMatch};
+use outgrep_ast_core::replacer::{Content, Replacer, TemplateFix, TemplateFixError};
+use outgrep_ast_core::{Doc, Language, Matcher, NodeMatch};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -231,7 +231,7 @@ mod test {
   use crate::from_str;
   use crate::maybe::Maybe;
   use crate::test::TypeScript;
-  use ast_grep_core::tree_sitter::LanguageExt;
+  use outgrep_ast_core::tree_sitter::LanguageExt;
 
   #[test]
   fn test_parse() {
@@ -308,7 +308,7 @@ mod test {
 
   #[test]
   fn test_relace_range() -> Result<(), FixerError> {
-    use ast_grep_core::matcher::KindMatcher;
+    use outgrep_ast_core::matcher::KindMatcher;
     let expand_end = from_str("{regex: ',', stopBy: neighbor}").expect("should word");
     let config = SerializableFixConfig {
       expand_end: Maybe::Present(expand_end),

@@ -1,8 +1,8 @@
 use super::rewrite::Rewrite;
 use super::{string_case, Ctx, TransformError};
-use ast_grep_core::meta_var::MetaVariable;
-use ast_grep_core::source::Content;
-use ast_grep_core::{Doc, Language};
+use outgrep_ast_core::meta_var::MetaVariable;
+use outgrep_ast_core::source::Content;
+use outgrep_ast_core::{Doc, Language};
 
 use regex::Regex;
 use schemars::JsonSchema;
@@ -208,7 +208,7 @@ mod test {
   use super::*;
   use crate::test::TypeScript;
   use crate::{DeserializeEnv, Transformation};
-  use ast_grep_core::tree_sitter::LanguageExt;
+  use outgrep_ast_core::tree_sitter::LanguageExt;
   use serde_yaml::with::singleton_map_recursive;
   use std::collections::HashMap;
 
