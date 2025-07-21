@@ -30,50 +30,6 @@ Transform Outgrep from a ripgrep-based search tool into a next-generation stream
 **Goal:** Expose all CLI functionality as a clean library API
 
 **API Surface Design:**
-```rust
-// Core library interface
-pub struct OutgrepEngine {
-    config: OutgrepConfig,
-}
-
-impl OutgrepEngine {
-    pub fn new(config: OutgrepConfig) -> Result<Self>;
-
-    // Search operations
-    pub fn search(&self, query: SearchQuery) -> Result<SearchResults>;
-    pub fn search_streaming(&self, query: SearchQuery) -> impl Stream<Item = SearchResult>;
-
-    // Analysis operations
-    pub fn analyze_file(&self, path: &Path) -> Result<FileAnalysis>;
-    pub fn analyze_directory(&self, path: &Path) -> Result<DirectoryAnalysis>;
-    pub fn watch_directory(&self, path: &Path) -> impl Stream<Item = FileChangeEvent>;
-
-    // Tree and symbol operations
-    pub fn build_tree(&self, path: &Path) -> Result<ProjectTree>;
-    pub fn extract_symbols(&self, path: &Path) -> Result<SymbolCollection>;
-}
-
-// Configuration
-#[derive(Debug, Clone)]
-pub struct OutgrepConfig {
-    pub enable_semantic_search: bool,
-    pub enable_git_integration: bool,
-    pub enable_diagnostics: bool,
-    pub output_format: OutputFormat,
-    // Mirror CLI flag options
-}
-
-// Error handling strategy
-#[derive(Debug, thiserror::Error)]
-pub enum OutgrepError {
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-    #[error("Parse error: {0}")]
-    Parse(String),
-    #[error("Language not supported: {0}")]
-    UnsupportedLanguage(String),
-}
-```
 
 The library API serves as the foundation for all external integrations, providing a clean interface to Outgrep's capabilities without requiring command-line invocation. This design prioritizes ease of use while maintaining the full power of the CLI tool.
 

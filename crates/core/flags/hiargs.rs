@@ -1093,12 +1093,12 @@ impl Patterns {
         if !matches!(low.mode, Mode::Search(_)) {
             return Ok(Patterns { patterns: vec![] });
         }
-        
+
         // Skip pattern validation for tree mode
         if low.tree {
             return Ok(Patterns { patterns: vec![] });
         }
-        
+
         // If we got nothing from -e/--regexp and -f/--file, then the first
         // positional is a pattern.
         if low.patterns.is_empty() {

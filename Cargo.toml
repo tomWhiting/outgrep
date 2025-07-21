@@ -31,6 +31,10 @@ bench = false
 path = "crates/core/main.rs"
 name = "og"
 
+[lib]
+name = "ripgrep"
+path = "crates/core/lib.rs"
+
 [[test]]
 name = "integration"
 path = "tests/tests.rs"
