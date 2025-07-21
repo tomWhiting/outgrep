@@ -241,10 +241,10 @@ impl GitAnalyzer {
     /// Format Git status for display
     pub fn format_status(&self, status: &GitFileStatus) -> &'static str {
         match status {
-            GitFileStatus::Staged => "📁", // Staged
-            GitFileStatus::Modified => "📝", // Modified
-            GitFileStatus::Untracked => "❓", // Untracked
-            GitFileStatus::Conflicted => "⚠️", // Conflicted
+            GitFileStatus::Staged => "S", // Staged
+            GitFileStatus::Modified => "M", // Modified
+            GitFileStatus::Untracked => "?", // Untracked
+            GitFileStatus::Conflicted => "!", // Conflicted
         }
     }
 
@@ -260,7 +260,7 @@ impl GitAnalyzer {
         
         let ahead_behind = match &diagnostics.ahead_behind {
             Some((ahead, behind)) if *ahead > 0 || *behind > 0 => {
-                format!(" (↑{} ↓{})", ahead, behind)
+                format!(" (+{} -{})", ahead, behind)
             }
             _ => String::new(),
         };
@@ -466,6 +466,6 @@ mod tests {
         assert!(summary.contains("Branch: main"));
         assert!(summary.contains("Commits: 42"));
         assert!(summary.contains("3 staged"));
-        assert!(summary.contains("↑2 ↓1"));
+        assert!(summary.contains("+2 -1"));
     }
 }

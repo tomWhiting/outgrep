@@ -119,13 +119,67 @@ impl ModelRegistry {
 
     /// Load registry from embedded default
     pub fn load_default() -> Result<Self> {
-        const DEFAULT_REGISTRY: &str = include_str!("../../../../model-registry.json");
-        let registry: ModelRegistry = serde_json::from_str(DEFAULT_REGISTRY)
-            .context("Failed to parse embedded model registry")?;
+        // Create a minimal default registry that doesn't depend on repository files
+        let default_registry = r#"{
+            "version": "1.0",
+            "updated": "2024-01-15T10:00:00Z",
+            "description": "Default outgrep model registry for semantic search",
+            "models": {
+                "all-MiniLM-L6-v2": {
+                    "name": "all-MiniLM-L6-v2",
+                    "description": "Fast, lightweight model for general semantic search. Best balance of speed and quality.",
+                    "dimensions": 384,
+                    "size_mb": 23,
+                    "license": "Apache-2.0",
+                    "performance": {
+                        "speed": "fast",
+                        "quality": "good",
+                        "memory_mb": 50,
+                        "inference_time_ms": 15
+                    },
+                    "files": {
+                        "model": {
+                            "url": "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx",
+                            "filename": "model.onnx",
+                            "sha256": "placeholder_hash_1",
+                            "size_bytes": 24156789
+                        },
+                        "tokenizer": {
+                            "url": "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json",
+                            "filename": "tokenizer.json",
+                            "sha256": "placeholder_hash_2",
+                            "size_bytes": 456789
+                        }
+                    },
+                    "use_cases": ["general", "code", "documentation", "fast-search"],
+                    "supported_languages": ["en", "code"],
+                    "recommended_for": "Most users - good default choice"
+                }
+            },
+            "recommendations": {
+                "default": "all-MiniLM-L6-v2",
+                "fast": "all-MiniLM-L6-v2"
+            },
+            "categories": {
+                "general-purpose": ["all-MiniLM-L6-v2"],
+                "fast": ["all-MiniLM-L6-v2"]
+            },
+            "sources": {
+                "huggingface": {
+                    "base_url": "https://huggingface.co/sentence-transformers",
+                    "description": "Official sentence-transformers models from Hugging Face",
+                    "reliability": "high",
+                    "cdn": true
+                }
+            }
+        }"#;
+        
+        let registry: ModelRegistry = serde_json::from_str(default_registry)
+            .context("Failed to parse default model registry")?;
         Ok(registry)
     }
 
-    /// Load registry with fallback priority: user -> project -> default
+    /// Load registry with fallback priority: user -> central cache -> project -> default
     pub fn load_with_fallback(model_path: Option<&Path>) -> Result<Self> {
         // Try user-specified path first
         if let Some(path) = model_path {
@@ -134,7 +188,7 @@ impl ModelRegistry {
             }
         }
 
-        // Try user config directory
+        // Try user config directory (.config/outgrep/model-registry.json)
         if let Some(home_dir) = dirs::home_dir() {
             let user_registry = home_dir.join(".config/outgrep/model-registry.json");
             if user_registry.exists() {
@@ -142,13 +196,21 @@ impl ModelRegistry {
             }
         }
 
-        // Try project-local registry
+        // Try central cache directory (.cache/outgrep/model-registry.json) 
+        if let Some(home_dir) = dirs::home_dir() {
+            let cache_registry = home_dir.join(".cache/outgrep/model-registry.json");
+            if cache_registry.exists() {
+                return Self::load_from_file(cache_registry);
+            }
+        }
+
+        // Try project-local registry (for backwards compatibility)
         let project_registry = Path::new(".outgrep/model-registry.json");
         if project_registry.exists() {
             return Self::load_from_file(project_registry);
         }
 
-        // Fall back to embedded default
+        // Fall back to embedded default (repository-independent)
         Self::load_default()
     }
 
@@ -209,6 +271,36 @@ impl ModelRegistry {
             model_file.exists() && tokenizer_file.exists()
         } else {
             false
+        }
+    }
+
+    /// Install default registry to central cache location for first-time setup
+    pub fn install_to_cache() -> Result<PathBuf> {
+        if let Some(home_dir) = dirs::home_dir() {
+            let cache_dir = home_dir.join(".cache/outgrep");
+            let registry_path = cache_dir.join("model-registry.json");
+            
+            // Create cache directory if it doesn't exist
+            if !cache_dir.exists() {
+                std::fs::create_dir_all(&cache_dir)
+                    .context("Failed to create cache directory")?;
+            }
+
+            // Only install if registry doesn't exist
+            if !registry_path.exists() {
+                let default_registry = Self::load_default()?;
+                let registry_json = serde_json::to_string_pretty(&default_registry)
+                    .context("Failed to serialize default registry")?;
+                
+                std::fs::write(&registry_path, registry_json)
+                    .context("Failed to write registry to cache")?;
+                
+                println!("Installed model registry to: {}", registry_path.display());
+            }
+            
+            Ok(registry_path)
+        } else {
+            Err(anyhow::anyhow!("Could not determine home directory"))
         }
     }
 }

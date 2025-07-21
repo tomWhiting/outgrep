@@ -1,6 +1,7 @@
 fn main() {
     set_git_revision_hash();
     set_windows_exe_options();
+    set_onnx_runtime_rpath();
 }
 
 /// Embed a Windows manifest and set some linker options.
@@ -43,4 +44,13 @@ fn set_git_revision_hash() {
         return;
     }
     println!("cargo:rustc-env=RIPGREP_BUILD_GIT_HASH={}", rev);
+}
+
+/// Set rpath for ONNX Runtime library to enable semantic search
+fn set_onnx_runtime_rpath() {
+    if cfg!(target_os = "macos") {
+        println!("cargo:rustc-link-arg=-Wl,-rpath,@executable_path");
+    } else if cfg!(target_os = "linux") {
+        println!("cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN");
+    }
 }

@@ -212,6 +212,9 @@ pub struct ModelManager;
 impl ModelManager {
     /// Create a model downloader with automatic path detection
     pub fn create_downloader(custom_path: Option<&Path>) -> Result<ModelDownloader> {
+        // Ensure central registry is installed on first use
+        let _ = ModelRegistry::install_to_cache().context("Failed to setup central registry")?;
+        
         let registry = ModelRegistry::load_with_fallback(None)?;
         
         let storage_path = if let Some(path) = custom_path {
@@ -219,6 +222,12 @@ impl ModelManager {
         } else {
             Self::default_storage_path()?
         };
+
+        // Ensure storage directory exists
+        if !storage_path.exists() {
+            fs::create_dir_all(&storage_path)
+                .with_context(|| format!("Failed to create model storage directory: {}", storage_path.display()))?;
+        }
 
         Ok(ModelDownloader::new(registry, storage_path))
     }
@@ -257,7 +266,7 @@ impl ModelManager {
         
         for (name, info) in models {
             let downloaded = downloader.is_model_available(name).unwrap_or(false);
-            let status = if downloaded { " ✓" } else { "" };
+            let status = if downloaded { " [OK]" } else { "" };
             
             println!(
                 "{:<25} {:<15} {:<8} {:<12} {:<30}{}",

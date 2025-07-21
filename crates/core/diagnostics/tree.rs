@@ -3,27 +3,39 @@ use std::path::{Path, PathBuf};
 
 use crate::diagnostics::types::{TreeNode, DirectoryNode, FileNode, GitFileStatus, FileDiagnostics};
 use crate::diagnostics::{MetricsCalculator, GitAnalyzer};
+use crate::diagnostics::compiler::CompilerDiagnosticsRunner;
 
 /// Builder for constructing directory trees with metrics and git information
 pub struct TreeBuilder {
     git_analyzer: GitAnalyzer,
     git_status: HashMap<PathBuf, GitFileStatus>,
     workspace_diagnostics: HashMap<PathBuf, FileDiagnostics>,
+    options: TreeDisplayOptions,
 }
 
 impl TreeBuilder {
     /// Create a new tree builder for the given directory
     pub fn new<P: AsRef<Path>>(path: P) -> Self {
+        Self::with_options(path, TreeDisplayOptions::default())
+    }
+
+    /// Create a new tree builder with specific display options
+    pub fn with_options<P: AsRef<Path>>(path: P, options: TreeDisplayOptions) -> Self {
         let git_analyzer = GitAnalyzer::new(&path);
         let git_status = git_analyzer.get_status_for_cwd().unwrap_or_default();
         
-        // Run workspace-wide diagnostics once
-        let workspace_diagnostics = Self::run_workspace_diagnostics(&path);
+        // Run workspace-wide diagnostics once if diagnostics are enabled
+        let workspace_diagnostics = if options.show_diagnostics {
+            Self::run_workspace_diagnostics(&path)
+        } else {
+            HashMap::new()
+        };
         
         Self {
             git_analyzer,
             git_status,
             workspace_diagnostics,
+            options,
         }
     }
     
@@ -177,8 +189,8 @@ impl TreeBuilder {
         // Detect language from extension
         file_node.language = self.detect_language(full_path);
         
-        // Calculate metrics for source files
-        if self.is_source_file(full_path) {
+        // Calculate metrics for source files if analysis is enabled
+        if self.options.show_analysis && self.is_source_file(full_path) {
             if let Ok(content) = std::fs::read_to_string(full_path) {
                 if let Ok(metrics) = MetricsCalculator::calculate_metrics(full_path, &content) {
                     file_node.metrics = Some(metrics);
@@ -186,9 +198,14 @@ impl TreeBuilder {
             }
         }
         
-        // Get cached diagnostics for this file
-        if self.is_source_file(full_path) {
-            file_node.diagnostics = self.get_diagnostics_for_file(full_path);
+        // Run compiler diagnostics for this file if diagnostics are enabled
+        if self.options.show_diagnostics && self.is_source_file(full_path) {
+            file_node.diagnostics = self.run_diagnostics_for_file(full_path);
+        }
+        
+        // Extract AST structure for supported files if syntax analysis is enabled
+        if self.options.show_syntax && self.is_source_file(full_path) {
+            file_node.ast_structure = crate::diagnostics::extract_ast_structure(full_path);
         }
         
         // Set last modified time
@@ -407,6 +424,18 @@ impl TreeBuilder {
         Some((file_path, diagnostic))
     }
     
+    /// Run compiler diagnostics for a file
+    fn run_diagnostics_for_file(&self, file_path: &Path) -> Option<FileDiagnostics> {
+        // First check cached diagnostics
+        if let Some(diagnostics) = self.get_diagnostics_for_file(file_path) {
+            return Some(diagnostics);
+        }
+        
+        // Run fresh diagnostics using CompilerDiagnosticsRunner
+        let language_str = Self::detect_language_from_extension(file_path);
+        CompilerDiagnosticsRunner::run_diagnostics(file_path, language_str)
+    }
+
     /// Get diagnostics for a file with robust path matching
     fn get_diagnostics_for_file(&self, file_path: &Path) -> Option<FileDiagnostics> {
         // Try exact path match first
@@ -423,6 +452,23 @@ impl TreeBuilder {
         }
         
         None
+    }
+    
+    /// Detect language from file extension
+    fn detect_language_from_extension(path: &Path) -> Option<&'static str> {
+        if let Some(extension) = path.extension().and_then(|ext| ext.to_str()) {
+            match extension.to_lowercase().as_str() {
+                "rs" => Some("Rust"),
+                "js" | "jsx" => Some("JavaScript"),
+                "ts" | "tsx" => Some("TypeScript"),
+                "py" => Some("Python"),
+                "java" => Some("Java"),
+                "go" => Some("Go"),
+                _ => None,
+            }
+        } else {
+            None
+        }
     }
     
     /// Check if two paths refer to the same file
@@ -457,12 +503,13 @@ impl TreeBuilder {
 pub struct TreeDisplay;
 
 /// Options for displaying additional information with files
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct TreeDisplayOptions {
     pub show_metrics: bool,
     pub show_diffs: bool,
     pub show_analysis: bool,
     pub show_diagnostics: bool,
+    pub show_syntax: bool,
     pub truncate_diffs: bool,
     pub output_json: bool,
     pub git_status: std::collections::HashMap<std::path::PathBuf, crate::diagnostics::GitFileStatus>,
@@ -681,6 +728,15 @@ impl TreeDisplay {
                     }
                 }
                 
+                // Add AST structure if available and syntax analysis is enabled
+                if options.show_syntax {
+                    if let Some(ast_structure) = &file.ast_structure {
+                        if let Ok(ast_json) = serde_json::to_value(ast_structure) {
+                            file_obj.insert("ast_structure".to_string(), ast_json);
+                        }
+                    }
+                }
+                
                 serde_json::Value::Object(file_obj)
             }
         }
@@ -846,7 +902,7 @@ impl TreeDisplay {
         // Show analysis information if requested
         if options.show_analysis && file.metrics.is_some() {
             if let Some(metrics) = &file.metrics {
-                println!("{}├─ 📊 Analysis:", file_prefix);
+                println!("{}├─ Analysis:", file_prefix);
                 println!("{}│  • Lines of code: {}", file_prefix, metrics.lines_of_code);
                 println!("{}│  • Comment lines: {}", file_prefix, metrics.comment_lines);
                 println!("{}│  • Functions: {}", file_prefix, metrics.function_count);
@@ -861,11 +917,11 @@ impl TreeDisplay {
                 let connector = if has_other_sections { "├─" } else { "└─" };
                 
                 if diagnostics.total_count() > 0 {
-                    println!("{}{} 🔍 Diagnostics ({} issues):", file_prefix, connector, diagnostics.total_count());
+                    println!("{}{} Diagnostics ({} issues):", file_prefix, connector, diagnostics.total_count());
                     
                     // Show errors
                     for error in &diagnostics.errors {
-                        println!("{}│  ❌ Line {}: {}", file_prefix, error.location.line, error.message);
+                        println!("{}│  E Line {}: {}", file_prefix, error.location.line, error.message);
                         if let Some(code) = &error.code {
                             println!("{}│     Code: {}", file_prefix, code);
                         }
@@ -873,7 +929,7 @@ impl TreeDisplay {
                     
                     // Show warnings
                     for warning in &diagnostics.warnings {
-                        println!("{}│  ⚠️  Line {}: {}", file_prefix, warning.location.line, warning.message);
+                        println!("{}│  W Line {}: {}", file_prefix, warning.location.line, warning.message);
                         if let Some(code) = &warning.code {
                             println!("{}│     Code: {}", file_prefix, code);
                         }
@@ -889,15 +945,74 @@ impl TreeDisplay {
                     
                     // Show hints
                     for hint in &diagnostics.hints {
-                        println!("{}│  💡 Line {}: {}", file_prefix, hint.location.line, hint.message);
+                        println!("{}│  H Line {}: {}", file_prefix, hint.location.line, hint.message);
                         if let Some(code) = &hint.code {
                             println!("{}│     Code: {}", file_prefix, code);
                         }
                     }
                 } else {
-                    println!("{}{} ✅ No diagnostics issues", file_prefix, connector);
+                    println!("{}{} No diagnostics issues", file_prefix, connector);
                 }
             }
+        }
+        
+        // Show AST structure if requested and available
+        if options.show_syntax && file.ast_structure.is_some() {
+            if let Some(ast_structure) = &file.ast_structure {
+                let has_other_sections = (options.show_analysis && file.metrics.is_some()) || 
+                                        (options.show_diagnostics && file.diagnostics.is_some());
+                let connector = if has_other_sections { "├─" } else { "└─" };
+                
+                println!("{}{} AST Structure:", file_prefix, connector);
+                Self::display_ast_structure(ast_structure, &format!("{}│  ", file_prefix));
+            }
+        }
+    }
+    
+    /// Display AST structure in a readable tree format
+    fn display_ast_structure(ast: &crate::diagnostics::types::AstStructure, prefix: &str) {
+        println!("{}Language: {}", prefix, ast.language);
+        
+        if !ast.root_nodes.is_empty() {
+            println!("{}Root nodes: {}", prefix, ast.root_nodes.len());
+            for (i, root) in ast.root_nodes.iter().enumerate().take(3) {
+                println!("{}  {}. {} ({}..{})", prefix, i + 1, root.node_type, root.range.start, root.range.end);
+            }
+            if ast.root_nodes.len() > 3 {
+                println!("{}  ... and {} more", prefix, ast.root_nodes.len() - 3);
+            }
+        }
+        
+        if !ast.symbols.functions.is_empty() {
+            println!("{}Functions:", prefix);
+            for func in &ast.symbols.functions {
+                println!("{}  • {} (line {})", prefix, func.name, func.line);
+            }
+        }
+        
+        if !ast.symbols.classes.is_empty() {
+            println!("{}Classes/Structs:", prefix);
+            for class in &ast.symbols.classes {
+                println!("{}  • {} (line {})", prefix, class.name, class.line);
+            }
+        }
+        
+        if !ast.symbols.types.is_empty() {
+            println!("{}Types:", prefix);
+            for type_def in &ast.symbols.types {
+                println!("{}  • {} (line {})", prefix, type_def.name, type_def.line);
+            }
+        }
+        
+        if !ast.symbols.modules.is_empty() {
+            println!("{}Modules:", prefix);
+            for module in &ast.symbols.modules {
+                println!("{}  • {} (line {})", prefix, module.name, module.line);
+            }
+        }
+        
+        if !ast.syntax_tokens.is_empty() {
+            println!("{}Syntax tokens: {} total", prefix, ast.syntax_tokens.len());
         }
     }
     
@@ -985,24 +1100,24 @@ impl TreeDisplay {
     /// Get icon for different node types
     fn get_icon(node: &TreeNode) -> &'static str {
         match node {
-            TreeNode::Directory(_) => "📁 ",
+            TreeNode::Directory(_) => "",
             TreeNode::File(file) => {
                 if let Some(language) = &file.language {
                     match language.as_str() {
-                        "Rust" => "🦀 ",
-                        "JavaScript" | "TypeScript" => "📜 ",
-                        "Python" => "🐍 ",
-                        "Java" => "☕ ",
-                        "Go" => "🐹 ",
-                        "C" | "C++" => "⚙️ ",
-                        "JSON" | "YAML" | "TOML" => "📋 ",
-                        "Markdown" => "📝 ",
-                        "HTML" => "🌐 ",
-                        "CSS" | "SCSS" => "🎨 ",
-                        _ => "📄 ",
+                        "Rust" => "R ",
+                        "JavaScript" | "TypeScript" => "J ",
+                        "Python" => "P ",
+                        "Java" => "J ",
+                        "Go" => "G ",
+                        "C" | "C++" => "C ",
+                        "JSON" | "YAML" | "TOML" => "",
+                        "Markdown" => "M ",
+                        "HTML" => "H ",
+                        "CSS" | "SCSS" => "C ",
+                        _ => "",
                     }
                 } else {
-                    "📄 "
+                    ""
                 }
             }
         }
@@ -1011,10 +1126,10 @@ impl TreeDisplay {
     /// Get git status icon
     fn get_git_icon(status: &Option<GitFileStatus>) -> &'static str {
         match status {
-            Some(GitFileStatus::Modified) => "📝",
-            Some(GitFileStatus::Staged) => "📁",
-            Some(GitFileStatus::Untracked) => "❓",
-            Some(GitFileStatus::Conflicted) => "⚠️",
+            Some(GitFileStatus::Modified) => "M",
+            Some(GitFileStatus::Staged) => "S",
+            Some(GitFileStatus::Untracked) => "?",
+            Some(GitFileStatus::Conflicted) => "!",
             None => "",
         }
     }
@@ -1023,7 +1138,7 @@ impl TreeDisplay {
     pub fn display_summary(node: &TreeNode) {
         if let TreeNode::Directory(dir) = node {
             println!();
-            println!("📊 Directory Summary:");
+            println!("Directory Summary:");
             println!("  Total files: {}", dir.stats.total_files);
             println!("  Total directories: {}", dir.stats.total_directories);
             println!("  Total lines of code: {}", dir.stats.total_loc);
@@ -1039,7 +1154,7 @@ impl TreeDisplay {
             
             if !dir.stats.languages.is_empty() {
                 println!();
-                println!("📚 Languages:");
+                println!("Languages:");
                 let mut lang_vec: Vec<_> = dir.stats.languages.iter().collect();
                 lang_vec.sort_by(|a, b| b.1.cmp(a.1)); // Sort by count descending
                 

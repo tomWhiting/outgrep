@@ -22,10 +22,11 @@ log = "0.4.20"
 memchr = "2.6.3"
 memmap = { package = "memmap2", version = "0.9.0" }
 thiserror = "2.0.0"
+tempfile = "3.20.0"
 
 # Semantic search
 instant-distance = "0.6.1"
-ort = { version = "1.16.3", features = ["load-dynamic"] }
+ort = { version = "1.16.3", features = ["download-binaries", "compile-static"] }
 tokenizers = "0.19.1"
 ndarray = "0.15"
 serde = { version = "1.0", features = ["derive"] }

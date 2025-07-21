@@ -51,6 +51,7 @@ pub(crate) struct HiArgs {
     tree: bool,
     truncate_diffs: bool,
     diagnostics: bool,
+    syntax: bool,
     json_output: bool,
     dfa_size_limit: Option<usize>,
     encoding: EncodingMode,
@@ -285,6 +286,7 @@ impl HiArgs {
             tree: low.tree,
             truncate_diffs: low.truncate_diffs,
             diagnostics: low.diagnostics,
+            syntax: low.syntax,
             json_output: low.json_output,
             dfa_size_limit: low.dfa_size_limit,
             encoding: low.encoding,
@@ -829,6 +831,11 @@ impl HiArgs {
     /// Return whether compiler diagnostics are enabled.
     pub(crate) fn diagnostics(&self) -> bool {
         self.diagnostics
+    }
+
+    /// Return whether syntax analysis is enabled.
+    pub(crate) fn syntax(&self) -> bool {
+        self.syntax
     }
 
     /// Return whether JSON output is enabled.

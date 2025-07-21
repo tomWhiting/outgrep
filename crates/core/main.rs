@@ -88,7 +88,7 @@ fn run(result: crate::flags::ParseResult<HiArgs>) -> anyhow::Result<ExitCode> {
         return tokio::runtime::Runtime::new()?.block_on(analyze_and_watch(&args));
     } else if args.watch() {
         return tokio::runtime::Runtime::new()?.block_on(watch(&args));
-    } else if args.tree() || args.analyze() || args.diff() || args.diagnostics() {
+    } else if args.tree() || args.analyze() || args.diff() || args.diagnostics() || args.syntax() {
         // Unified tree backbone for all analysis modes
         return tokio::runtime::Runtime::new()?.block_on(unified_tree_mode(&args));
     } else {
@@ -552,14 +552,14 @@ fn print_stats<W: Write>(
 async fn analyze(args: &HiArgs) -> anyhow::Result<ExitCode> {
     use crate::diagnostics::{MetricsCalculator, GitAnalyzer};
     
-    println!("🔍 Outgrep Code Intelligence Analysis");
+    println!("Outgrep Code Intelligence Analysis");
     println!("=====================================");
     println!();
     
     // Use current directory for analysis
     let current_dir = std::path::Path::new(".");
     
-    println!("📁 Analyzing directory: {}", current_dir.display());
+    println!("Analyzing directory: {}", current_dir.display());
     println!();
     
     // Initialize Git analyzer to get changed files
@@ -628,13 +628,13 @@ async fn analyze(args: &HiArgs) -> anyhow::Result<ExitCode> {
                             let relative_path = path.strip_prefix(current_dir).unwrap_or(path);
                             let status_icon = if let Some(git_status) = git_status.get(relative_path) {
                                 match git_status {
-                                    crate::diagnostics::GitFileStatus::Modified => "📝",
-                                    crate::diagnostics::GitFileStatus::Staged => "📁",
-                                    crate::diagnostics::GitFileStatus::Untracked => "❓",
-                                    crate::diagnostics::GitFileStatus::Conflicted => "⚠️",
+                                    crate::diagnostics::GitFileStatus::Modified => "M",
+                                    crate::diagnostics::GitFileStatus::Staged => "S",
+                                    crate::diagnostics::GitFileStatus::Untracked => "?",
+                                    crate::diagnostics::GitFileStatus::Conflicted => "!",
                                 }
                             } else {
-                                "📄"
+                                ""
                             };
                             
                             println!("{} {}: {}", 
@@ -670,7 +670,7 @@ async fn analyze(args: &HiArgs) -> anyhow::Result<ExitCode> {
     }
     
     println!();
-    println!("📊 Summary Statistics:");
+    println!("Summary Statistics:");
     println!("  Files analyzed: {}", total_files);
     println!("  Total lines of code: {}", total_loc);
     println!("  Total comment lines: {}", total_comments);
@@ -682,13 +682,13 @@ async fn analyze(args: &HiArgs) -> anyhow::Result<ExitCode> {
     // Add Git status information at the bottom (summary section)
     if let Some(git_diagnostics) = git_diagnostics {
         println!();
-        println!("🔗 Git Status: {}", git_analyzer.diagnostics_summary(&git_diagnostics));
+        println!("Git Status: {}", git_analyzer.diagnostics_summary(&git_diagnostics));
     }
     
     // Show diffs for changed files if diff flag is enabled
     if args.diff() && !git_status.is_empty() {
         println!();
-        println!("📋 Semantic Diffs for Changed Files:");
+        println!("Semantic Diffs for Changed Files:");
         println!("{}", "═".repeat(60));
         
         for (relative_path, status) in &git_status {
@@ -725,7 +725,7 @@ async fn analyze(args: &HiArgs) -> anyhow::Result<ExitCode> {
 async fn diff_only(args: &HiArgs) -> anyhow::Result<ExitCode> {
     use crate::diagnostics::GitAnalyzer;
     
-    println!("🔍 Outgrep Git Diff Analysis");
+    println!("Outgrep Git Diff Analysis");
     println!("============================");
     println!();
     
@@ -738,13 +738,13 @@ async fn diff_only(args: &HiArgs) -> anyhow::Result<ExitCode> {
     let git_diagnostics = git_analyzer.get_diagnostics().ok();
     
     if git_status.is_empty() {
-        println!("🟢 No changes detected in current directory.");
+        println!("No changes detected in current directory.");
         return Ok(ExitCode::from(0));
     }
     
     // Display git status summary
     if let Some(git_diagnostics) = git_diagnostics {
-        println!("🔗 Git Status: {}", git_analyzer.diagnostics_summary(&git_diagnostics));
+        println!("Git Status: {}", git_analyzer.diagnostics_summary(&git_diagnostics));
         println!();
     }
     
@@ -766,9 +766,9 @@ async fn diff_only(args: &HiArgs) -> anyhow::Result<ExitCode> {
             crate::diagnostics::GitFileStatus::Modified | 
             crate::diagnostics::GitFileStatus::Staged => {
                 let status_icon = match status {
-                    crate::diagnostics::GitFileStatus::Modified => "📝",
-                    crate::diagnostics::GitFileStatus::Staged => "📁",
-                    _ => "📄",
+                    crate::diagnostics::GitFileStatus::Modified => "M",
+                    crate::diagnostics::GitFileStatus::Staged => "S",
+                    _ => "",
                 };
                 
                 println!("{} {}", status_icon, relative_path.display());
@@ -800,9 +800,9 @@ async fn diff_only(args: &HiArgs) -> anyhow::Result<ExitCode> {
     }
     
     if diff_count == 0 {
-        println!("🟡 No file diffs to display (files may be untracked or have no changes).");
+        println!("No file diffs to display (files may be untracked or have no changes).");
     } else {
-        println!("📊 Displayed {} file diff(s)", diff_count);
+        println!("Displayed {} file diff(s)", diff_count);
     }
     
     Ok(ExitCode::from(0))
@@ -812,7 +812,7 @@ async fn diff_only(args: &HiArgs) -> anyhow::Result<ExitCode> {
 async fn tree_only(args: &HiArgs) -> anyhow::Result<ExitCode> {
     use crate::diagnostics::{GitAnalyzer, TreeBuilder, TreeDisplay, TreeDisplayOptions};
     
-    println!("🌳 Outgrep Tree View");
+    println!("Outgrep Tree View");
     println!("===================");
     println!();
     
@@ -827,24 +827,26 @@ async fn tree_only(args: &HiArgs) -> anyhow::Result<ExitCode> {
     if !git_status.is_empty() {
         let git_diagnostics = git_analyzer.get_diagnostics().ok();
         if let Some(git_diagnostics) = git_diagnostics {
-            println!("🔗 Git Status: {}", git_analyzer.diagnostics_summary(&git_diagnostics));
+            println!("Git Status: {}", git_analyzer.diagnostics_summary(&git_diagnostics));
             println!();
         }
     }
     
     // Build and display tree
-    let tree_builder = TreeBuilder::new(&root_path_buf);
+    let options = TreeDisplayOptions {
+        show_metrics: false,
+        show_diffs: false,
+        show_analysis: false,
+        show_diagnostics: args.diagnostics(),
+        show_syntax: args.syntax(),
+        truncate_diffs: args.truncate_diffs(),
+        output_json: args.json_output(),
+        git_status: git_status.clone(),
+    };
+    
+    let tree_builder = TreeBuilder::with_options(&root_path_buf, options.clone());
     match tree_builder.build_tree(&root_path_buf) {
         Ok(tree) => {
-            let options = TreeDisplayOptions {
-                show_metrics: false,
-                show_diffs: false,
-                show_analysis: false,
-                show_diagnostics: args.diagnostics(),
-                truncate_diffs: args.truncate_diffs(),
-                output_json: args.json_output(),
-                git_status: git_status.clone(),
-            };
             
             if args.json_output() {
                 TreeDisplay::output_json(&tree, &options);
@@ -865,7 +867,7 @@ async fn tree_only(args: &HiArgs) -> anyhow::Result<ExitCode> {
 async fn tree_with_diff(args: &HiArgs) -> anyhow::Result<ExitCode> {
     use crate::diagnostics::{GitAnalyzer, TreeBuilder, TreeDisplay, TreeDisplayOptions};
     
-    println!("🔍 Outgrep Git Diff Analysis");
+    println!("Outgrep Git Diff Analysis");
     println!("============================");
     println!();
     
@@ -889,27 +891,29 @@ async fn tree_with_diff(args: &HiArgs) -> anyhow::Result<ExitCode> {
     
     // Display git status summary
     if let Some(git_diagnostics) = git_diagnostics {
-        println!("🔗 Git Status: {}", git_analyzer.diagnostics_summary(&git_diagnostics));
+        println!("Git Status: {}", git_analyzer.diagnostics_summary(&git_diagnostics));
         println!();
     }
     
-    println!("🌳 Directory Tree");
+    println!("Directory Tree");
     println!("=================");
     println!();
     
     // Build and display tree with diff information
-    let tree_builder = TreeBuilder::new(&root_path_buf);
+    let options = TreeDisplayOptions {
+        show_metrics: false,
+        show_diffs: true,
+        show_analysis: false,
+        show_diagnostics: args.diagnostics(),
+        show_syntax: args.syntax(),
+        truncate_diffs: args.truncate_diffs(),
+        output_json: args.json_output(),
+        git_status: git_status.clone(),
+    };
+    
+    let tree_builder = TreeBuilder::with_options(&root_path_buf, options.clone());
     match tree_builder.build_tree(&root_path_buf) {
         Ok(tree) => {
-            let options = TreeDisplayOptions {
-                show_metrics: false,
-                show_diffs: true,
-                show_analysis: false,
-                show_diagnostics: args.diagnostics(),
-                truncate_diffs: args.truncate_diffs(),
-                output_json: args.json_output(),
-                git_status: git_status.clone(),
-            };
             
             TreeDisplay::display_tree_with_options(&tree, &options);
         }
@@ -935,7 +939,7 @@ fn show_semantic_diff(path: &std::path::Path, git_analyzer: &crate::diagnostics:
     // Create a diff
     let diff = TextDiff::from_lines(&head_content, &current_content);
     
-    println!("\n📄 {}", path.display());
+    println!("\n{}", path.display());
     println!("{}", "─".repeat(50));
     
     let mut has_changes = false;
@@ -966,7 +970,7 @@ async fn watch(args: &HiArgs) -> anyhow::Result<ExitCode> {
     
     let current_dir = std::path::Path::new(".");
     
-    println!("👀 Outgrep File Watcher");
+    println!("Outgrep File Watcher");
     println!("========================");
     println!("Watching for changes in: {}", current_dir.display());
     println!("Press Ctrl+C to exit...");
@@ -980,7 +984,7 @@ async fn watch(args: &HiArgs) -> anyhow::Result<ExitCode> {
         if let Some(event) = watcher.next_event_timeout(Duration::from_secs(1)).await {
             match event {
                 crate::diagnostics::FileChangeEvent::Created(path) => {
-                    println!("✅ File created: {}", path.display());
+                    println!("File created: {}", path.display());
                     if let Ok(content) = std::fs::read_to_string(&path) {
                         if let Ok(metrics) = MetricsCalculator::calculate_metrics(&path, &content) {
                             println!("   {}", MetricsCalculator::metrics_summary(&metrics));
@@ -988,7 +992,7 @@ async fn watch(args: &HiArgs) -> anyhow::Result<ExitCode> {
                     }
                 }
                 crate::diagnostics::FileChangeEvent::Modified(path) => {
-                    println!("📝 File modified: {}", path.display());
+                    println!("File modified: {}", path.display());
                     if let Ok(content) = std::fs::read_to_string(&path) {
                         if let Ok(metrics) = MetricsCalculator::calculate_metrics(&path, &content) {
                             println!("   {}", MetricsCalculator::metrics_summary(&metrics));
@@ -996,10 +1000,10 @@ async fn watch(args: &HiArgs) -> anyhow::Result<ExitCode> {
                     }
                 }
                 crate::diagnostics::FileChangeEvent::Deleted(path) => {
-                    println!("🗑️  File deleted: {}", path.display());
+                    println!("File deleted: {}", path.display());
                 }
                 crate::diagnostics::FileChangeEvent::Renamed { from, to } => {
-                    println!("🔄 File renamed: {} -> {}", from.display(), to.display());
+                    println!("File renamed: {} -> {}", from.display(), to.display());
                 }
             }
             std::io::stdout().flush().unwrap();
@@ -1018,11 +1022,11 @@ async fn analyze_and_watch(args: &HiArgs) -> anyhow::Result<ExitCode> {
     // First, perform the analysis
     let current_dir = std::path::Path::new(".");
     
-    println!("🔍 Outgrep Code Intelligence Analysis & Watch");
+    println!("Outgrep Code Intelligence Analysis & Watch");
     println!("==============================================");
     println!();
     
-    println!("📁 Analyzing directory: {}", current_dir.display());
+    println!("Analyzing directory: {}", current_dir.display());
     
     // Initialize Git analyzer and get status
     let git_analyzer = GitAnalyzer::new(current_dir);
@@ -1090,13 +1094,13 @@ async fn analyze_and_watch(args: &HiArgs) -> anyhow::Result<ExitCode> {
                             let relative_path = path.strip_prefix(current_dir).unwrap_or(path);
                             let status_icon = if let Some(git_status) = git_status.get(relative_path) {
                                 match git_status {
-                                    crate::diagnostics::GitFileStatus::Modified => "📝",
-                                    crate::diagnostics::GitFileStatus::Staged => "📁",
-                                    crate::diagnostics::GitFileStatus::Untracked => "❓",
-                                    crate::diagnostics::GitFileStatus::Conflicted => "⚠️",
+                                    crate::diagnostics::GitFileStatus::Modified => "M",
+                                    crate::diagnostics::GitFileStatus::Staged => "S",
+                                    crate::diagnostics::GitFileStatus::Untracked => "?",
+                                    crate::diagnostics::GitFileStatus::Conflicted => "!",
                                 }
                             } else {
-                                "📄"
+                                ""
                             };
                             
                             println!("{} {}: {}", 
@@ -1132,7 +1136,7 @@ async fn analyze_and_watch(args: &HiArgs) -> anyhow::Result<ExitCode> {
     }
     
     println!();
-    println!("📊 Summary Statistics:");
+    println!("Summary Statistics:");
     println!("  Files analyzed: {}", total_files);
     println!("  Total lines of code: {}", total_loc);
     println!("  Total comment lines: {}", total_comments);
@@ -1144,12 +1148,12 @@ async fn analyze_and_watch(args: &HiArgs) -> anyhow::Result<ExitCode> {
     // Add Git status information at the bottom (summary section)
     if let Some(git_diagnostics) = git_diagnostics {
         println!();
-        println!("🔗 Git Status: {}", git_analyzer.diagnostics_summary(&git_diagnostics));
+        println!("Git Status: {}", git_analyzer.diagnostics_summary(&git_diagnostics));
     }
     println!();
     
     // Now start file watching
-    println!("👀 Starting file watcher (press Ctrl+C to exit)...");
+    println!("Starting file watcher (press Ctrl+C to exit)...");
     println!("Watching for changes in: {}", current_dir.display());
     println!();
     
@@ -1161,7 +1165,7 @@ async fn analyze_and_watch(args: &HiArgs) -> anyhow::Result<ExitCode> {
         if let Some(event) = watcher.next_event_timeout(Duration::from_secs(1)).await {
             match event {
                 crate::diagnostics::FileChangeEvent::Created(path) => {
-                    println!("✅ File created: {}", path.display());
+                    println!("File created: {}", path.display());
                     if let Ok(content) = std::fs::read_to_string(&path) {
                         if let Ok(metrics) = MetricsCalculator::calculate_metrics(&path, &content) {
                             println!("   {}", MetricsCalculator::metrics_summary(&metrics));
@@ -1169,7 +1173,7 @@ async fn analyze_and_watch(args: &HiArgs) -> anyhow::Result<ExitCode> {
                     }
                 }
                 crate::diagnostics::FileChangeEvent::Modified(path) => {
-                    println!("📝 File modified: {}", path.display());
+                    println!("File modified: {}", path.display());
                     if let Ok(content) = std::fs::read_to_string(&path) {
                         if let Ok(metrics) = MetricsCalculator::calculate_metrics(&path, &content) {
                             println!("   {}", MetricsCalculator::metrics_summary(&metrics));
@@ -1177,10 +1181,10 @@ async fn analyze_and_watch(args: &HiArgs) -> anyhow::Result<ExitCode> {
                     }
                 }
                 crate::diagnostics::FileChangeEvent::Deleted(path) => {
-                    println!("🗑️  File deleted: {}", path.display());
+                    println!("File deleted: {}", path.display());
                 }
                 crate::diagnostics::FileChangeEvent::Renamed { from, to } => {
-                    println!("🔄 File renamed: {} -> {}", from.display(), to.display());
+                    println!("File renamed: {} -> {}", from.display(), to.display());
                 }
             }
             std::io::stdout().flush().unwrap();
@@ -1205,39 +1209,27 @@ async fn unified_tree_mode(args: &HiArgs) -> anyhow::Result<ExitCode> {
     
     // Only show headers and status when NOT in JSON output mode
     if !args.json_output() {
-        // Determine header based on active flags
-        let header = if args.tree() && args.diff() && args.analyze() && args.diagnostics() {
-            "🔍 Outgrep Unified Analysis (Tree + Diff + Analysis + Diagnostics)"
-        } else if args.tree() && args.diff() && args.analyze() {
-            "🔍 Outgrep Unified Analysis (Tree + Diff + Analysis)"
-        } else if args.tree() && args.diff() && args.diagnostics() {
-            "🔍 Outgrep Unified Analysis (Tree + Diff + Diagnostics)"
-        } else if args.tree() && args.analyze() && args.diagnostics() {
-            "🔍 Outgrep Unified Analysis (Tree + Analysis + Diagnostics)"
-        } else if args.diff() && args.analyze() && args.diagnostics() {
-            "🔍 Outgrep Unified Analysis (Diff + Analysis + Diagnostics)"
-        } else if args.tree() && args.diff() {
-            "🔍 Outgrep Tree + Diff Analysis"
-        } else if args.tree() && args.analyze() {
-            "🔍 Outgrep Tree + Code Analysis"
-        } else if args.tree() && args.diagnostics() {
-            "🔍 Outgrep Tree + Diagnostics"
-        } else if args.diff() && args.analyze() {
-            "🔍 Outgrep Diff + Code Analysis"
-        } else if args.diff() && args.diagnostics() {
-            "🔍 Outgrep Diff + Diagnostics"
-        } else if args.analyze() && args.diagnostics() {
-            "🔍 Outgrep Code Analysis + Diagnostics"
-        } else if args.tree() {
-            "🌳 Outgrep Tree View"
-        } else if args.diff() {
-            "🔍 Outgrep Git Diff Analysis"
-        } else if args.analyze() {
-            "🔍 Outgrep Code Intelligence Analysis"
-        } else if args.diagnostics() {
-            "🔍 Outgrep Compiler Diagnostics"
+        // Determine header based on active flags - build dynamically
+        let mut features = Vec::new();
+        if args.tree() { features.push("Tree"); }
+        if args.diff() { features.push("Diff"); }
+        if args.analyze() { features.push("Analysis"); }
+        if args.diagnostics() { features.push("Diagnostics"); }
+        if args.syntax() { features.push("Syntax"); }
+        
+        let header = if features.is_empty() {
+            "Outgrep Analysis".to_string()
+        } else if features.len() == 1 {
+            match features[0] {
+                "Tree" => "Outgrep Tree View".to_string(),
+                "Diff" => "Outgrep Git Diff Analysis".to_string(),
+                "Analysis" => "Outgrep Code Intelligence Analysis".to_string(),
+                "Diagnostics" => "Outgrep Compiler Diagnostics".to_string(),
+                "Syntax" => "Outgrep Syntax Analysis".to_string(),
+                _ => "Outgrep Analysis".to_string()
+            }
         } else {
-            "🔍 Outgrep Analysis"
+            format!("Outgrep Unified Analysis ({})", features.join(" + "))
         };
         
         println!("{}", header);
@@ -1247,33 +1239,36 @@ async fn unified_tree_mode(args: &HiArgs) -> anyhow::Result<ExitCode> {
         // Display git status summary if available and relevant
         if !git_status.is_empty() && (args.diff() || args.tree()) {
             if let Some(git_diagnostics) = git_diagnostics {
-                println!("🔗 Git Status: {}", git_analyzer.diagnostics_summary(&git_diagnostics));
+                println!("Git Status: {}", git_analyzer.diagnostics_summary(&git_diagnostics));
                 println!();
             }
         }
     }
     
     // Handle tree mode or file-centric mode
-    if args.tree() {
+    if args.tree() || args.syntax() {
         // Tree backbone mode - integrate everything into tree structure
-        if !args.json_output() {
-            println!("🌳 Directory Tree");
+        if !args.json_output() && args.tree() {
+            println!("Directory Tree");
             println!("=================");
             println!();
         }
         
-        let tree_builder = TreeBuilder::new(&root_path_buf);
+        // Create TreeDisplayOptions based on individual flags
+        let options = TreeDisplayOptions {
+            show_metrics: args.analyze(),
+            show_diffs: args.diff(),
+            show_analysis: args.analyze(),
+            show_diagnostics: args.diagnostics(),
+            show_syntax: args.syntax(),
+            truncate_diffs: args.truncate_diffs(),
+            output_json: args.json_output(),
+            git_status: git_status.clone(),
+        };
+        
+        let tree_builder = TreeBuilder::with_options(&root_path_buf, options.clone());
         match tree_builder.build_tree(&root_path_buf) {
             Ok(tree) => {
-                let options = TreeDisplayOptions {
-                    show_metrics: args.analyze(),
-                    show_diffs: args.diff(),
-                    show_analysis: args.analyze(),
-                    show_diagnostics: args.diagnostics(),
-                    truncate_diffs: args.truncate_diffs(),
-                    output_json: args.json_output(),
-                    git_status: git_status.clone(),
-                };
                 
                 if args.json_output() {
                     output_unified_json(&tree, &options, args, &git_status).await;
@@ -1366,13 +1361,13 @@ async fn unified_tree_mode(args: &HiArgs) -> anyhow::Result<ExitCode> {
             let file_git_status = git_status.get(relative_path);
             let status_icon = if let Some(status) = file_git_status {
                 match status {
-                    crate::diagnostics::GitFileStatus::Modified => "📝",
-                    crate::diagnostics::GitFileStatus::Staged => "📁",
-                    crate::diagnostics::GitFileStatus::Untracked => "❓",
-                    crate::diagnostics::GitFileStatus::Conflicted => "⚠️",
+                    crate::diagnostics::GitFileStatus::Modified => "M",
+                    crate::diagnostics::GitFileStatus::Staged => "S",
+                    crate::diagnostics::GitFileStatus::Untracked => "?",
+                    crate::diagnostics::GitFileStatus::Conflicted => "!",
                 }
             } else {
-                "📄"
+                ""
             };
             
             // Display file with full path
@@ -1437,7 +1432,7 @@ async fn unified_tree_mode(args: &HiArgs) -> anyhow::Result<ExitCode> {
         // Show summary statistics if analysis was performed
         if args.analyze() && analyzed_files > 0 {
             println!();
-            println!("📊 Summary Statistics:");
+            println!("Summary Statistics:");
             println!("  Files analyzed: {}", analyzed_files);
             println!("  Total lines of code: {}", total_loc);
             println!("  Total comment lines: {}", total_comments);

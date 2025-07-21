@@ -3,6 +3,71 @@ use std::path::PathBuf;
 use std::time::SystemTime;
 use std::collections::BTreeMap;
 
+/// AST-related types for syntax tree structure
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AstNodeInfo {
+    /// The type of AST node (e.g., "function_declaration", "class_definition")
+    pub node_type: String,
+    /// Byte range of this node in the source
+    pub range: std::ops::Range<usize>,
+    /// Line and column range for display
+    pub start_line: u32,
+    pub start_column: u32,
+    pub end_line: u32,
+    pub end_column: u32,
+    /// Symbol name if this node represents a named entity
+    pub symbol_name: Option<String>,
+    /// Child nodes
+    pub children: Vec<AstNodeInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyntaxHighlightToken {
+    /// Byte range of the token
+    pub range: std::ops::Range<usize>,
+    /// Token type (e.g., "keyword", "string", "comment")
+    pub token_type: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AstStructure {
+    /// Programming language detected
+    pub language: String,
+    /// Root nodes of the AST (typically one per file)
+    pub root_nodes: Vec<AstNodeInfo>,
+    /// Syntax highlighting tokens
+    pub syntax_tokens: Vec<SyntaxHighlightToken>,
+    /// Symbol summary - quick access to important symbols
+    pub symbols: AstSymbolSummary,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AstSymbolSummary {
+    /// Function/method definitions
+    pub functions: Vec<SymbolInfo>,
+    /// Class/struct/interface definitions
+    pub classes: Vec<SymbolInfo>,
+    /// Type definitions
+    pub types: Vec<SymbolInfo>,
+    /// Module/namespace definitions  
+    pub modules: Vec<SymbolInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SymbolInfo {
+    /// Name of the symbol
+    pub name: String,
+    /// Type of symbol
+    pub symbol_type: String,
+    /// Byte range in source
+    pub range: std::ops::Range<usize>,
+    /// Line number (1-based)
+    pub line: u32,
+    /// Column number (1-based) 
+    pub column: u32,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CodeMetrics {
     pub lines_of_code: u64,
@@ -167,6 +232,7 @@ pub struct FileNode {
     pub metrics: Option<CodeMetrics>,
     pub last_modified: Option<SystemTime>,
     pub diagnostics: Option<FileDiagnostics>,
+    pub ast_structure: Option<AstStructure>,
 }
 
 impl FileNode {
@@ -180,6 +246,7 @@ impl FileNode {
             metrics: None,
             last_modified: None,
             diagnostics: None,
+            ast_structure: None,
         }
     }
 }
