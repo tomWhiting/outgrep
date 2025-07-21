@@ -56,137 +56,127 @@ Clear terminology prevents confusion between actual compiler diagnostics (errors
 
 ---
 
-## Phase 2: LSP Integration
+## Phase 2: LSP Integration ✅ **READY-TO-USE**
 
-### LSP Server Foundation
-**Goal:** Integrate tower-lsp server with existing AST infrastructure
+### LSP Server Status
+**Goal:** Enable editor integration with existing LSP server
 
-The LSP integration transforms Outgrep from a command-line tool into a first-class editor citizen. By implementing the Language Server Protocol, we enable real-time code intelligence directly within developers' editing environments. This approach leverages ast-grep's proven LSP architecture while extending it with Outgrep's unique semantic capabilities.
+**✅ What's Already Available:**
+The `outgrep-ast-lsp` crate provides a fully functional LSP server inherited from ast-grep with:
 
-The design prioritizes editor compatibility while providing custom extensions for advanced features like semantic search and real-time analysis. Standard LSP capabilities include document symbols, workspace symbols, diagnostics, and hover information, while custom extensions enable features like project-wide semantic search and live code intelligence.
+- **Complete LSP Backend** (`Backend<L>`) implementing `LanguageServer` trait
+- **Core capabilities:**
+  - Text document sync (full document updates)
+  - Real-time diagnostics with AST-based pattern matching
+  - Code actions (quickfix + source.fixAll)
+  - Execute commands (ast-grep.applyAllFixes) 
+  - Hover support with rule documentation
+  - Workspace and file management
+- **Multi-language support** via tree-sitter (`SupportLang`)
+- **Rule-based analysis** with configurable severity and fixing
+- **Working tests** validating LSP protocol compliance
 
-**New Crate Structure:**
-```
-crates/outgrep-lsp/
-├── src/
-│   ├── lib.rs           # Main LSP backend
-│   ├── server.rs        # Server setup and initialization
-│   ├── handlers.rs      # LSP message handlers
-│   ├── diagnostics.rs   # Convert outgrep diagnostics to LSP format
-│   ├── symbols.rs       # Document symbols and workspace symbols
-│   └── utils.rs         # Conversion utilities
-└── tests/
-    └── integration.rs   # LSP protocol tests
-```
-
-**Core Implementation:**
+**Current Architecture:**
 ```rust
-pub struct OutgrepLspBackend {
+// Already implemented in crates/ast-lsp/src/lib.rs
+pub struct Backend<L: LSPLang> {
     client: Client,
-    workspace_root: PathBuf,
-    file_cache: DashMap<Uri, VersionedDocument>,
-    outgrep_engine: OutgrepEngine,
-}
-
-impl LanguageServer for OutgrepLspBackend {
-    // Standard LSP capabilities
-    async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult>;
-    async fn did_open(&self, params: DidOpenTextDocumentParams);
-    async fn did_change(&self, params: DidChangeTextDocumentParams);
-    async fn document_symbol(&self, params: DocumentSymbolParams) -> Result<Option<DocumentSymbolResponse>>;
-
-    // Custom extensions for semantic search
-    async fn workspace_symbol(&self, params: WorkspaceSymbolParams) -> Result<Option<Vec<SymbolInformation>>>;
+    map: DashMap<String, VersionedAst<StrDoc<L>>>,
+    base: PathBuf,
+    rules: RuleCollection<L>,
+    // ... file caching and rule management
 }
 ```
 
-**LSP Capabilities:**
-- Document symbols (functions, classes, types, modules)
-- Workspace symbols with semantic search
-- Diagnostics (compiler errors/warnings)
-- Code actions (basic AST-based fixes)
-- Hover information with symbol details
+### Integration Tasks
+**What needs to be done:**
 
-**Integration Points:**
-- Use existing `extract_symbols()` for document symbols
-- Leverage `CompilerDiagnosticsRunner` for diagnostics
-- Bridge semantic search for workspace symbols
+1. **Binary/Service Creation** - Create executable to run the LSP server
+2. **Rule Configuration** - Connect Outgrep's pattern rules to LSP diagnostics
+3. **Editor Testing** - Validate with VS Code, Neovim for basic functionality
+4. **Optional Extensions:**
+   - Document symbols (if needed by GraphMother)
+   - Workspace symbols with semantic search integration
+   - Custom protocol extensions for Outgrep-specific features
 
-### Editor Integration Testing
-**Goal:** Validate LSP server with major editors
-
-Editor integration testing ensures broad compatibility across the development ecosystem. The testing approach validates both standard LSP functionality and custom extensions, ensuring a consistent experience regardless of editor choice. This validation includes testing protocol compliance, performance characteristics, and feature completeness.
-
-Primary testing targets include VS Code for mainstream adoption, Neovim for terminal-based development, and Emacs for advanced users. Each editor requires specific configuration patterns and may expose different edge cases in the LSP implementation. Custom protocol extensions enable advanced features while maintaining fallback compatibility for editors that don't support them.
+**No major development required** - the LSP infrastructure is production-ready from ast-grep.
 
 ---
 
 ## Phase 3: Enhanced Symbol Granularity
 
-### Comment & Documentation Extraction
-**Goal:** Extend symbol extraction to capture comments and docs separately
+### Comment & Documentation Extraction 
+**Goal:** Leverage existing AST parsing to capture comments and docs separately
 
-Enhanced symbol granularity provides the detailed code understanding necessary for advanced analysis and visualization. By separately capturing comments, documentation, and code structure, we enable rich representations of code that preserve both implementation and intent. This granular approach supports sophisticated analysis patterns while maintaining the performance characteristics required for real-time operation.
+**✅ What's Already Available:**
+Outgrep already has sophisticated comment detection and AST parsing capabilities:
 
-The extraction process must handle diverse language conventions for documentation, from JSDoc and Rust doc comments to Python docstrings and inline comments. This language-aware approach ensures consistent representation across the entire codebase while respecting each language's documentation idioms.
+- **Tree-sitter Comment Detection**: All comment nodes identified via `node.kind().contains("comment")`
+- **Syntax Highlighting**: Comment tokens already extracted with precise ranges
+- **AST Structure**: `AstNodeInfo` with symbol boundaries and hierarchical structure
+- **Enclosing Symbol Detection**: `--enclosing-symbol` flag provides precise symbol boundaries
+- **Multi-language Support**: 21+ languages with language-specific comment patterns
 
-**Enhancement to `extract_symbols()`:**
+**Current Infrastructure:**
 ```rust
-#[derive(Debug, Clone, Serialize)]
-pub struct EnhancedSymbolInfo {
-    pub name: String,
-    pub symbol_type: String,
-    pub range: Range<usize>,
-    pub location: SymbolLocation,
-
-    // Enhanced granularity
-    pub comments: Vec<CommentInfo>,
-    pub documentation: Vec<DocInfo>,
-    pub attributes: Vec<AttributeInfo>,
-    pub body_range: Option<Range<usize>>,
+// Already available in crates/core/diagnostics/types.rs
+pub struct AstNodeInfo {
+    pub node_type: String,           // e.g., "comment", "function_declaration"
+    pub range: Range<usize>,         // Precise byte boundaries
+    pub symbol_name: Option<String>, // Symbol name if applicable
+    pub children: Vec<AstNodeInfo>,  // Hierarchical structure
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct CommentInfo {
-    pub comment_type: CommentType, // Line, Block, Doc
-    pub content: String,
+pub struct SyntaxHighlightToken {
     pub range: Range<usize>,
-    pub location: SymbolLocation,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub enum CommentType {
-    Line,           // // or #
-    Block,          // /* */ or """ """
-    Documentation,  // /// or /** */ or """..."""
+    pub token_type: String,          // "comment", "string", "keyword", etc.
 }
 ```
 
-**Language-Specific Comment Patterns:**
-- **Rust:** `//`, `///`, `//!`, `/* */`, `/** */`
-- **Python:** `#`, `"""docstring"""`, `'''docstring'''`
-- **JavaScript/TypeScript:** `//`, `/* */`, `/** JSDoc */`
-- **Go:** `//`, `/* */`, `// Package doc`
-- **Java:** `//`, `/* */`, `/** JavaDoc */`
+**Simple Enhancement Strategy:**
+Rather than over-engineering, extend existing `extract_ast_structure()` to separate comment types:
 
-**Implementation Strategy:**
-The implementation extends the existing AST traversal to identify and classify comment nodes according to their type and purpose. Comment classification distinguishes between inline comments, block comments, and formal documentation, enabling appropriate handling for each type. Symbol-to-comment relationships preserve the semantic connections between code and its documentation, supporting intelligent analysis and presentation.
+```rust
+// Simple addition to existing types
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CommentType {
+    Line,           // // or #
+    Block,          // /* */ or """ """  
+    Documentation,  // /// or /** */ or """..."""
+}
 
-Language-specific handling ensures that each language's documentation conventions are properly recognized and preserved. This includes handling complex cases like nested comments, documentation inheritance, and cross-reference patterns that vary significantly between programming languages.
+// Enhance existing AstNodeInfo for comment nodes
+impl AstNodeInfo {
+    pub fn comment_type(&self) -> Option<CommentType> {
+        if !self.node_type.contains("comment") { return None; }
+        // Use tree-sitter node analysis to classify comment type
+        // Implementation leverages existing AST parsing
+    }
+}
+```
+
+**Implementation Tasks:**
+1. **Extend AST extraction** to classify comment types using existing tree-sitter infrastructure
+2. **Symbol-comment relationships** by traversing existing AST hierarchy
+3. **Language-specific patterns** using existing `SupportLang` infrastructure
+
+**Complexity: Low** - leverages existing parsing, no new infrastructure needed.
 
 ### Symbol-Level Change Detection
-**Goal:** Detect changes at individual symbol granularity
+**Goal:** Build on existing FileWatcher for granular change detection
 
-Symbol-level change detection enables precise tracking of code modifications, supporting real-time analysis and intelligent caching strategies. Rather than invalidating entire files on change, this approach identifies exactly which symbols have been modified, allowing for targeted re-analysis and efficient update propagation.
+**✅ What's Already Available:**
+- **FileWatcher**: Real-time file change detection
+- **Symbol extraction**: Precise symbol boundaries and metadata
+- **AST comparison**: Tree-sitter provides node comparison capabilities
 
-The detection mechanism must balance precision with performance, identifying meaningful changes while avoiding noise from whitespace or comment modifications. This granular approach enables sophisticated features like dependency impact analysis and selective re-computation of semantic relationships.
-
-**Change Detection Strategy:**
+**Simple Implementation:**
 ```rust
+// Extend existing SymbolInfo with change detection
 #[derive(Debug, Clone)]
 pub struct SymbolChange {
     pub change_type: SymbolChangeType,
-    pub symbol: EnhancedSymbolInfo,
+    pub symbol_id: String,           // Simple hash of symbol signature
     pub file_path: PathBuf,
     pub timestamp: SystemTime,
 }
@@ -194,16 +184,18 @@ pub struct SymbolChange {
 #[derive(Debug, Clone)]
 pub enum SymbolChangeType {
     Added,
-    Modified { old_symbol: EnhancedSymbolInfo },
-    Removed { old_symbol: EnhancedSymbolInfo },
-    Moved { old_location: SymbolLocation },
+    Modified,
+    Removed,
+    Moved,
 }
 ```
 
 **Implementation Approach:**
-The approach maintains an in-memory symbol index for each file, enabling efficient comparison between current and previous states. When file changes occur, the system re-extracts symbols and performs intelligent matching based on symbol signatures and locations. This matching process must handle common refactoring patterns like symbol moves and renames while maintaining accuracy.
+1. **Hash symbol signatures** (name + type + basic structure) for change detection
+2. **Integrate with FileWatcher** to trigger symbol re-extraction on file changes
+3. **Simple diff algorithm** comparing symbol hashes before/after
 
-Performance optimization focuses on incremental processing and intelligent debouncing to handle rapid editing scenarios. Background processing ensures that change detection doesn't interfere with editor responsiveness, while caching strategies minimize redundant computation during active development sessions.
+**Complexity: Low** - builds on existing infrastructure, avoids complex matching algorithms.
 
 ---
 
