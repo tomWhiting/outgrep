@@ -38,16 +38,16 @@ pub struct OutgrepEngine {
 
 impl OutgrepEngine {
     pub fn new(config: OutgrepConfig) -> Result<Self>;
-    
+
     // Search operations
     pub fn search(&self, query: SearchQuery) -> Result<SearchResults>;
     pub fn search_streaming(&self, query: SearchQuery) -> impl Stream<Item = SearchResult>;
-    
-    // Analysis operations  
+
+    // Analysis operations
     pub fn analyze_file(&self, path: &Path) -> Result<FileAnalysis>;
     pub fn analyze_directory(&self, path: &Path) -> Result<DirectoryAnalysis>;
     pub fn watch_directory(&self, path: &Path) -> impl Stream<Item = FileChangeEvent>;
-    
+
     // Tree and symbol operations
     pub fn build_tree(&self, path: &Path) -> Result<ProjectTree>;
     pub fn extract_symbols(&self, path: &Path) -> Result<SymbolCollection>;
@@ -114,7 +114,7 @@ The design prioritizes editor compatibility while providing custom extensions fo
 crates/outgrep-lsp/
 ├── src/
 │   ├── lib.rs           # Main LSP backend
-│   ├── server.rs        # Server setup and initialization  
+│   ├── server.rs        # Server setup and initialization
 │   ├── handlers.rs      # LSP message handlers
 │   ├── diagnostics.rs   # Convert outgrep diagnostics to LSP format
 │   ├── symbols.rs       # Document symbols and workspace symbols
@@ -138,7 +138,7 @@ impl LanguageServer for OutgrepLspBackend {
     async fn did_open(&self, params: DidOpenTextDocumentParams);
     async fn did_change(&self, params: DidChangeTextDocumentParams);
     async fn document_symbol(&self, params: DocumentSymbolParams) -> Result<Option<DocumentSymbolResponse>>;
-    
+
     // Custom extensions for semantic search
     async fn workspace_symbol(&self, params: WorkspaceSymbolParams) -> Result<Option<Vec<SymbolInformation>>>;
 }
@@ -182,7 +182,7 @@ pub struct EnhancedSymbolInfo {
     pub symbol_type: String,
     pub range: Range<usize>,
     pub location: SymbolLocation,
-    
+
     // Enhanced granularity
     pub comments: Vec<CommentInfo>,
     pub documentation: Vec<DocInfo>,
@@ -335,7 +335,7 @@ CREATE (f:File {path: $path, last_modified: $timestamp})
 CREATE (s:Symbol {name: $name, type: $type, file_path: $path, range: $range})
 CREATE (c:Comment {content: $content, type: $type, file_path: $path})
 
-// Relationships  
+// Relationships
 CREATE (s)-[:DEFINED_IN]->(f)
 CREATE (c)-[:DOCUMENTS]->(s)
 CREATE (s1)-[:CALLS]->(s2)
@@ -359,7 +359,7 @@ POST /embeddings/generate
     "model": "code-embedding-model"
 }
 
-POST /embeddings/search  
+POST /embeddings/search
 {
     "query": "authentication logic",
     "threshold": 0.8,
@@ -412,38 +412,3 @@ Graceful degradation patterns ensure that component failures don't cascade throu
 Success metrics provide objective measures of the implementation's effectiveness and adoption. Performance metrics ensure that advanced capabilities don't compromise the speed characteristics that make Outgrep valuable for daily development workflows. Reliability metrics validate the production-readiness of server components that developers depend on continuously.
 
 Adoption metrics demonstrate practical value through successful integration across diverse development environments. Extensibility metrics validate the architectural decisions by measuring community engagement and contribution patterns. These metrics guide both development priorities and architectural refinements.
-
----
-
-## Timeline Summary
-
-| Phase | Duration | Key Deliverables |
-|-------|----------|------------------|
-| **Phase 1** | 2-3 weeks | Library API, Test fixes, Terminology cleanup |
-| **Phase 2** | 2-4 weeks | LSP server, Editor integrations |  
-| **Phase 3** | 2-4 weeks | Enhanced symbols, Change detection |
-| **Phase 4** | 3-4 weeks | Event streaming, Multi-destination |
-| **Phase 5** | 2-3 weeks | Memgraph, Python service integration |
-
-**Total Estimated Duration:** 11-18 weeks (3-4.5 months)
-
----
-
-## Next Steps
-
-1. **Immediate (this week):**
-   - Fix test infrastructure (binary name)
-   - Create worktrees for parallel development
-   - Begin library API design
-
-2. **Short-term (next 2 weeks):**
-   - Implement core library API
-   - Set up LSP development environment
-   - Design enhanced symbol structures
-
-3. **Medium-term (1-2 months):**
-   - Complete LSP integration
-   - Implement streaming event system
-   - Begin external integrations
-
-This plan balances ambition with practicality, building incrementally on your excellent foundation while delivering real value at each phase.

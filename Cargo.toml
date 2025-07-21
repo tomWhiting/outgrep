@@ -47,7 +47,9 @@ members = [
   "crates/searcher",
   "crates/ignore",
   "crates/ast-core",
+  "crates/ast-config",
   "crates/ast-language",
+  "crates/ast-lsp",
 ]
 
 [dependencies]
@@ -63,7 +65,9 @@ textwrap = { version = "0.16.0", default-features = false }
 
 # AST functionality - core feature
 outgrep-ast-core = { path = "crates/ast-core" }
+outgrep-ast-config = { path = "crates/ast-config" }
 outgrep-ast-language = { path = "crates/ast-language" }
+outgrep-ast-lsp = { path = "crates/ast-lsp" }
 which = "8.0.0"
 dirs = "6.0.0"
 serde = { version = "1.0.77", features = ["derive"] }

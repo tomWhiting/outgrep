@@ -25,11 +25,11 @@ fn set_windows_exe_options() {
 
     println!("cargo:rerun-if-changed={}", MANIFEST);
     // Embed the Windows application manifest file.
-    println!("cargo:rustc-link-arg-bin=rg=/MANIFEST:EMBED");
-    println!("cargo:rustc-link-arg-bin=rg=/MANIFESTINPUT:{manifest}");
+    println!("cargo:rustc-link-arg-bin=og=/MANIFEST:EMBED");
+    println!("cargo:rustc-link-arg-bin=og=/MANIFESTINPUT:{manifest}");
     // Turn linker warnings into errors. Helps debugging, otherwise the
     // warnings get squashed (I believe).
-    println!("cargo:rustc-link-arg-bin=rg=/WX");
+    println!("cargo:rustc-link-arg-bin=og=/WX");
 }
 
 /// Make the current git hash available to the build as the environment

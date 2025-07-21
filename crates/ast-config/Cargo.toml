@@ -1,0 +1,26 @@
+[package]
+name = "outgrep-ast-config"
+description = "Search and Rewrite code at large scale using precise AST pattern"
+keywords = ["ast", "pattern", "codemod", "search", "rewrite"]
+version = "0.1.0"
+edition = "2021"
+license = "Unlicense OR MIT"
+authors = ["Tom <tom@example.com>"]
+
+[features]
+default = ["tree-sitter"]
+tree-sitter = ["outgrep-ast-core/tree-sitter"]
+
+[dependencies]
+outgrep-ast-core.workspace = true
+
+bit-set.workspace = true
+globset = "0.4.14"
+regex.workspace = true
+serde.workspace = true
+serde_yaml = "0.9.33"
+thiserror.workspace = true
+schemars.workspace = true
+
+[dev-dependencies]
+tree-sitter-typescript = "0.23.2"
